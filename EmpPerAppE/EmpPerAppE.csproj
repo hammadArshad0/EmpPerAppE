@@ -195,6 +195,7 @@
     <Compile Include="Controllers\HOD\SessionController.cs" />
     <Compile Include="Controllers\HOD\SubKPIController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
+    <Compile Include="Controllers\Login\UsersController.cs" />
     <Compile Include="Controllers\student\CourseController.cs" />
     <Compile Include="Controllers\student\StudentController.cs" />
     <Compile Include="Controllers\Teacher\TeacherController.cs" />
@@ -289,6 +290,7 @@
     <Content Include="Content\bootstrap.rtl.css" />
     <Content Include="Content\bootstrap.rtl.min.css" />
     <Content Include="favicon.ico" />
+    <Content Include=".gitignore" />
     <Content Include="Global.asax" />
     <Content Include="Models\Model1.Context.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
