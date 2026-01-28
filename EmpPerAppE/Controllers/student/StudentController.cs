@@ -21,109 +21,112 @@ namespace EmpPerAppE.Controllers.student
 
 
 
-        [HttpPost]
-        [Route("upload")]
-        public IHttpActionResult UploadStudent()
-        {
-            try
-            {
-                var httpRequest = HttpContext.Current.Request;
+        //[HttpPost]
+        //[Route("upload")]
+        //public IHttpActionResult UploadStudent()
+        //{
+        //    try
+        //    {
+        //        var httpRequest = HttpContext.Current.Request;
 
-                if (httpRequest.Files.Count == 0)
-                    return BadRequest("No file uploaded.");
+        //        if (httpRequest.Files.Count == 0)
+        //            return BadRequest("No file uploaded.");
 
-                var file = httpRequest.Files[0];
-                if (file == null || file.ContentLength == 0)
-                    return BadRequest("Empty file.");
+        //        var file = httpRequest.Files[0];
+        //        if (file == null || file.ContentLength == 0)
+        //            return BadRequest("Empty file.");
 
-                // Needed for ExcelDataReader
-                System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        //        // Needed for ExcelDataReader
+        //        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-                using (var stream = file.InputStream)
-                using (var reader = ExcelReaderFactory.CreateReader(stream))
-                {
-                    var result = reader.AsDataSet(new ExcelDataSetConfiguration()
-                    {
-                        ConfigureDataTable = (_) => new ExcelDataTableConfiguration() { UseHeaderRow = true }
-                    });
+        //        using (var stream = file.InputStream)
+        //        using (var reader = ExcelReaderFactory.CreateReader(stream))
+        //        {
+        //            var result = reader.AsDataSet(new ExcelDataSetConfiguration()
+        //            {
+        //                ConfigureDataTable = (_) => new ExcelDataTableConfiguration() { UseHeaderRow = true }
+        //            });
 
-                    var dataTable = result.Tables[0];
+        //            var dataTable = result.Tables[0];
 
-                    int insertedCount = 0;
-                    int skippedInvalidSession = 0;
-                    int skippedDuplicate = 0;
+        //            int insertedCount = 0;
+        //            int skippedInvalidSession = 0;
+        //            int skippedDuplicate = 0;
 
-                    foreach (DataRow row in dataTable.Rows)
-                    {
-                        // Validate required columns
-                        if (row["UserID"] == DBNull.Value || row["Name"] == DBNull.Value || row["AdmissionSessionId"] == DBNull.Value)
-                            continue;
+        //            foreach (DataRow row in dataTable.Rows)
+        //            {
+        //                // Validate required columns
+        //                if (row["UserID"] == DBNull.Value || row["Name"] == DBNull.Value || row["AdmissionSessionId"] == DBNull.Value)
+        //                    continue;
 
-                        string userId = row["UserID"].ToString().Trim();
-                        string name = row["Name"].ToString().Trim();
-                        int sessionId;
+        //                string userId = row["UserID"].ToString().Trim();
+        //                string name = row["Name"].ToString().Trim();
+        //                int sessionId;
 
-                        // Try parse AdmissionSessionId
-                        if (!int.TryParse(row["AdmissionSessionId"].ToString(), out sessionId))
-                            continue;
+        //                // Try parse AdmissionSessionId
+        //                if (!int.TryParse(row["AdmissionSessionId"].ToString(), out sessionId))
+        //                    continue;
 
-                        // Check if session exists
-                        if (db.Session.Find(sessionId) == null)
-                        {
-                            skippedInvalidSession++;
-                            continue;
-                        }
+        //                // Check if session exists
+        //                if (db.Session.Find(sessionId) == null)
+        //                {
+        //                    skippedInvalidSession++;
+        //                    continue;
+        //                }
 
-                        // 1️⃣ Check if user exists in Users table
-                        var existingUser = db.Users.Find(userId);
+        //                // 1️⃣ Check if user exists in Users table
+        //                var existingUser = db.Users.Find(userId);
 
-                        if (existingUser == null)
-                        {
-                            // 2️⃣ User doesn't exist, add to Users first
-                            Users newUser = new Users
-                            {
-                                id = userId,
-                                password = "default123",       // Can be customized
-                                role = "Student",
-                                profileImagePath = null,
-                                isActive = 1
-                            };
-                            db.Users.Add(newUser);
-                        }
+        //                if (existingUser == null)
+        //                {
+        //                    // 2️⃣ User doesn't exist, add to Users first
+        //                    Users newUser = new Users
+        //                    {
+        //                        id = userId,
+        //                        password = "default123",       // Can be customized
+        //                        role = "Student",
+        //                        profileImagePath = null,
+        //                        isActive = 1
+        //                    };
+        //                    db.Users.Add(newUser);
+        //                }
 
-                        // 3️⃣ Check if student already exists in Student table
-                        if (db.Student.Find(userId) != null)
-                        {
-                            skippedDuplicate++;
-                            continue;
-                        }
+        //                // 3️⃣ Check if student already exists in Student table
+        //                if (db.Student.Find(userId) != null)
+        //                {
+        //                    skippedDuplicate++;
+        //                    continue;
+        //                }
 
-                        // 4️⃣ Add to Student table
-                        db.Student.Add(new EmpPerAppE.Models.Student
-                        {
-                            userID = userId,
-                            name = name,
-                            admissionSessionID = sessionId
-                        });
+        //                // 4️⃣ Add to Student table
+        //                db.Student.Add(new EmpPerAppE.Models.Student
+        //                {
+        //                    userID = userId,
+        //                    name = name,
+        //                    admissionSessionID = sessionId
+        //                });
 
-                        insertedCount++;
-                    }
+        //                insertedCount++;
+        //            }
 
-                    // Save all changes in one transaction (Users + Student)
-                    db.SaveChanges();
+        //            // Save all changes in one transaction (Users + Student)
+        //            db.SaveChanges();
 
-                    string message = $"{insertedCount} students uploaded successfully.";
-                    if (skippedDuplicate > 0) message += $" {skippedDuplicate} duplicate(s) skipped.";
-                    if (skippedInvalidSession > 0) message += $" {skippedInvalidSession} row(s) skipped due to invalid session ID.";
+        //            string message = $"{insertedCount} students uploaded successfully.";
+        //            if (skippedDuplicate > 0) message += $" {skippedDuplicate} duplicate(s) skipped.";
+        //            if (skippedInvalidSession > 0) message += $" {skippedInvalidSession} row(s) skipped due to invalid session ID.";
 
-                    return Ok(message);
-                }
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-        }
+        //            return Ok(message);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return InternalServerError(ex);
+        //    }
+        //}
+
+
+
 
         //get all students
 
@@ -145,6 +148,98 @@ namespace EmpPerAppE.Controllers.student
                                 }).ToList();
 
                 return Ok(students);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+        [HttpPost]
+        [Route("upload")]
+        public IHttpActionResult UploadStudent()
+        {
+            try
+            {
+                var httpRequest = HttpContext.Current.Request;
+
+                // 1️⃣ Read sessionId from form
+                if (string.IsNullOrEmpty(httpRequest.Form["sessionId"]))
+                    return BadRequest("Session not selected.");
+
+                int sessionId = int.Parse(httpRequest.Form["sessionId"]);
+
+                // 2️⃣ Check session exists
+                if (db.Session.Find(sessionId) == null)
+                    return BadRequest("Invalid session selected.");
+
+                // 3️⃣ Check file uploaded
+                if (httpRequest.Files.Count == 0)
+                    return BadRequest("No file uploaded.");
+
+                var file = httpRequest.Files[0];
+                if (file == null || file.ContentLength == 0)
+                    return BadRequest("Empty file.");
+
+                System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+                using (var stream = file.InputStream)
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    var result = reader.AsDataSet(new ExcelDataSetConfiguration()
+                    {
+                        ConfigureDataTable = (_) => new ExcelDataTableConfiguration()
+                        {
+                            UseHeaderRow = true
+                        }
+                    });
+
+                    var dataTable = result.Tables[0];
+
+                    int inserted = 0;
+                    int skippedDuplicate = 0;
+
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        if (row["UserID"] == DBNull.Value || row["Name"] == DBNull.Value)
+                            continue;
+
+                        string userId = row["UserID"].ToString().Trim();
+                        string name = row["Name"].ToString().Trim();
+
+                        // Users table
+                        if (db.Users.Find(userId) == null)
+                        {
+                            db.Users.Add(new Users
+                            {
+                                id = userId,
+                                password = "123",
+                                role = "Student",
+                                profileImagePath = null,
+                                isActive = 1
+                            });
+                        }
+
+                        // Student duplicate check
+                        if (db.Student.Find(userId) != null)
+                        {
+                            skippedDuplicate++;
+                            continue;
+                        }
+
+                        db.Student.Add(new Student
+                        {
+                            userID = userId,
+                            name = name,
+                            admissionSessionID = sessionId
+                        });
+
+                        inserted++;
+                    }
+
+                    db.SaveChanges();
+
+                    return Ok($"{inserted} students uploaded. {skippedDuplicate} duplicates skipped.");
+                }
             }
             catch (Exception ex)
             {
