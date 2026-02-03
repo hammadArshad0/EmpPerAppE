@@ -86,6 +86,7 @@
     <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
     </Reference>
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Web.Cors, Version=5.3.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.AspNet.Cors.5.3.0\lib\net45\System.Web.Cors.dll</HintPath>
     </Reference>
@@ -189,6 +190,8 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Controllers\enrollment\EnrollmentController.cs" />
+    <Compile Include="Controllers\enrollment\KPISubKPIController.cs" />
     <Compile Include="Controllers\HOD\EmployeeTypeController.cs" />
     <Compile Include="Controllers\HOD\KpiController.cs" />
     <Compile Include="Controllers\HOD\PeerEvaluatorController.cs" />
@@ -224,6 +227,8 @@
     <Compile Include="Models\KPIScore.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
+    <Compile Include="Models\kpi\AddKPIDto.cs" />
+    <Compile Include="Models\kpi\CreateKpiDto.cs" />
     <Compile Include="Models\Model1.Context.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
