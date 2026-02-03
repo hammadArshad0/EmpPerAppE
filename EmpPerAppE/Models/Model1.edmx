@@ -4,7 +4,7 @@
   <edmx:Runtime>
     <!-- SSDL content -->
     <edmx:StorageModels>
-      <Schema Namespace="fypempModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+    <Schema Namespace="fypempModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
         <EntityType Name="ClassheldReport">
           <Key>
             <PropertyRef Name="SrNo" />
@@ -59,6 +59,7 @@
           </Key>
           <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="name" Type="varchar" MaxLength="50" />
+          <Property Name="KPI_Employeetype" Type="int" />
         </EntityType>
         <EntityType Name="KPIScore">
           <Key>
@@ -250,6 +251,18 @@
             </Principal>
             <Dependent Role="Enrollment">
               <PropertyRef Name="teacherID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK__KPI__KPI_Employe__14270015">
+          <End Role="EmployeeType" Type="Self.EmployeeType" Multiplicity="0..1" />
+          <End Role="KPI" Type="Self.KPI" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="EmployeeType">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="KPI">
+              <PropertyRef Name="KPI_Employeetype" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -519,6 +532,10 @@
             <End Role="Teacher" EntitySet="Teacher" />
             <End Role="Enrollment" EntitySet="Enrollment" />
           </AssociationSet>
+          <AssociationSet Name="FK__KPI__KPI_Employe__14270015" Association="Self.FK__KPI__KPI_Employe__14270015">
+            <End Role="EmployeeType" EntitySet="EmployeeType" />
+            <End Role="KPI" EntitySet="KPI" />
+          </AssociationSet>
           <AssociationSet Name="FK__KPIScore__empID__5AEE82B9" Association="Self.FK__KPIScore__empID__5AEE82B9">
             <End Role="Users" EntitySet="Users" />
             <End Role="KPIScore" EntitySet="KPIScore" />
@@ -592,8 +609,7 @@
             <End Role="Teacher" EntitySet="Teacher" />
           </AssociationSet>
         </EntityContainer>
-      </Schema>
-    </edmx:StorageModels>
+      </Schema></edmx:StorageModels>
     <!-- CSDL content -->
     <edmx:ConceptualModels>
       <Schema Namespace="fypempModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
@@ -627,6 +643,7 @@
           <Property Name="id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
           <Property Name="type" Type="String" MaxLength="20" FixedLength="false" Unicode="false" />
           <NavigationProperty Name="EmployeSessionKPI" Relationship="Self.FK__EmployeSe__Emplo__05D8E0BE" FromRole="EmployeeType" ToRole="EmployeSessionKPI" />
+          <NavigationProperty Name="KPI" Relationship="fypempModel.FK__KPI__KPI_Employe__14270015" FromRole="EmployeeType" ToRole="KPI" />
         </EntityType>
         <EntityType Name="EmployeSessionKPI">
           <Key>
@@ -667,6 +684,8 @@
           <NavigationProperty Name="EmployeSessionKPI" Relationship="Self.FK__EmployeSe__KPIID__534D60F1" FromRole="KPI" ToRole="EmployeSessionKPI" />
           <NavigationProperty Name="SessionKPIWeight" Relationship="Self.FK__SessionKP__KPIID__7D439ABD" FromRole="KPI" ToRole="SessionKPIWeight" />
           <NavigationProperty Name="SubKPI" Relationship="Self.FK__SubKPI__KPIID__5070F446" FromRole="KPI" ToRole="SubKPI" />
+          <Property Name="KPI_Employeetype" Type="Int32" />
+          <NavigationProperty Name="EmployeeType" Relationship="fypempModel.FK__KPI__KPI_Employe__14270015" FromRole="KPI" ToRole="EmployeeType" />
         </EntityType>
         <EntityType Name="KPIScore">
           <Key>
@@ -1235,7 +1254,23 @@
             <End Role="Users" EntitySet="Users" />
             <End Role="Teacher" EntitySet="Teacher" />
           </AssociationSet>
+          <AssociationSet Name="FK__KPI__KPI_Employe__14270015" Association="fypempModel.FK__KPI__KPI_Employe__14270015">
+            <End Role="EmployeeType" EntitySet="EmployeeType" />
+            <End Role="KPI" EntitySet="KPI" />
+          </AssociationSet>
         </EntityContainer>
+        <Association Name="FK__KPI__KPI_Employe__14270015">
+          <End Type="fypempModel.EmployeeType" Role="EmployeeType" Multiplicity="0..1" />
+          <End Type="fypempModel.KPI" Role="KPI" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="EmployeeType">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="KPI">
+              <PropertyRef Name="KPI_Employeetype" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
       </Schema>
     </edmx:ConceptualModels>
     <!-- C-S mapping content -->
@@ -1298,6 +1333,7 @@
           <EntitySetMapping Name="KPI">
             <EntityTypeMapping TypeName="fypempModel.KPI">
               <MappingFragment StoreEntitySet="KPI">
+                <ScalarProperty Name="KPI_Employeetype" ColumnName="KPI_Employeetype" />
                 <ScalarProperty Name="id" ColumnName="id" />
                 <ScalarProperty Name="name" ColumnName="name" />
               </MappingFragment>

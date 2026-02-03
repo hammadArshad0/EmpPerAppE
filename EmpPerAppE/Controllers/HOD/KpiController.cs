@@ -4,8 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Http;
-using System.Transactions; // for TransactionScope
-using System.Data.Entity;
+using System.Transactions;
 
 namespace EmpPerAppE.Controllers.HOD
 {
@@ -14,232 +13,129 @@ namespace EmpPerAppE.Controllers.HOD
     {
         fypempEntities db = new fypempEntities();
 
-        // ---------------------------------
-        // GET: List all KPI
-        // ---------------------------------
-        [HttpGet]
-        [Route("list")]
-        public IHttpActionResult GetAll()
-        {
-            try
-            {
-                var kpis = db.KPI.Select(k => new
-                {
-                    k.id,
-                    k.name
-                }).ToList();
-
-                return Ok(kpis);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-        }
-
-        // ---------------------------------
-        // POST: Create KPI (simple)
-        // ---------------------------------
-        [HttpPost]
-        [Route("create")]
-        public IHttpActionResult Create(KPI model)
-        {
-            try
-            {
-                db.KPI.Add(model);
-                db.SaveChanges();
-                return Ok("KPI added successfully");
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-        }
-
-        // ---------------------------------
-        // PUT: Update KPI
-        // ---------------------------------
-        [HttpPut]
-        [Route("update/{id}")]
-        public IHttpActionResult Update(int id, KPI model)
-        {
-            try
-            {
-                var kpi = db.KPI.Find(id);
-                if (kpi == null) return NotFound();
-
-                kpi.name = model.name;
-                db.SaveChanges();
-
-                return Ok("KPI updated successfully");
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-        }
-
-        // ---------------------------------
-        // DELETE: KPI
-        // ---------------------------------
-        [HttpDelete]
-        [Route("delete/{id}")]
-        public IHttpActionResult Delete(int id)
-        {
-            try
-            {
-                var kpi = db.KPI.Find(id);
-                if (kpi == null) return NotFound();
-
-                db.KPI.Remove(kpi);
-                db.SaveChanges();
-
-                return Ok("KPI deleted successfully");
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-        }
-
-        // ---------------------------------
-        // POST: Create KPI + SubKPI + Auto Adjust Weight (EF5-safe)
-        // ---------------------------------
         [HttpPost]
         [Route("create-with-weight")]
         public IHttpActionResult CreateWithWeight(AddKPIDto dto)
         {
+            if (dto == null || dto.SubKPIs == null || dto.SubKPIs.Count == 0)
+                return BadRequest("Data incomplete.");
+
             try
             {
-                using (var scope = new TransactionScope()) // EF5-compatible transaction
+                using (var scope = new TransactionScope())
                 {
-                    // 1️⃣ Adjust KPI weight
-                    int usedWeight = db.SessionKPIWeight
-                        .Where(x => x.SessionID == dto.SessionId)
-                        .Sum(x => (int?)x.Weight) ?? 0;
-
-                    int remaining = 100 - usedWeight;
-                    if (remaining <= 0)
-                        return BadRequest("Total KPI weight for this session is already 100");
-
-                    int finalKPIWeight = dto.RequestedKPIWeight > remaining ? remaining : dto.RequestedKPIWeight;
-
-                    // 2️⃣ Create KPI
-                    KPI kpi = new KPI { name = dto.KPIName };
+                    // 1. Create Main KPI (Agar pehle se nahi hai)
+                    KPI kpi = new KPI { name = dto.KPIName, KPI_Employeetype = dto.EmployeeTypeId };
                     db.KPI.Add(kpi);
-                    db.SaveChanges(); // get KPI ID
+                    db.SaveChanges();
 
-                    // 3️⃣ Only process SubKPIs if present
-                    List<int> adjustedSubWeights = new List<int>();
-                    if (dto.SubKPIs != null && dto.SubKPIs.Count > 0)
+                    // 2. Add Sub-KPIs
+                    foreach (var subDto in dto.SubKPIs)
                     {
-                        var subWeights = dto.SubKPIs.Select(x => x.Weight).ToList();
-                        int totalSubWeight = subWeights.Sum();
-                        if (totalSubWeight == 0) totalSubWeight = 1; // avoid divide by zero
+                        var subObj = new SubKPI { KPIID = kpi.id, name = subDto.Name };
+                        db.SubKPI.Add(subObj);
+                        db.SaveChanges(); // ID generate karne ke liye
 
-                        double factor = (double)finalKPIWeight / totalSubWeight;
-                        adjustedSubWeights = subWeights.Select(w => (int)Math.Round(w * factor)).ToList();
-
-                        // fix rounding difference
-                        int diff = finalKPIWeight - adjustedSubWeights.Sum();
-                        adjustedSubWeights[0] += diff;
-
-                        // insert SubKPI + SessionKPIWeight
-                        for (int i = 0; i < dto.SubKPIs.Count; i++)
+                        // Initial weight save karein (Backend ise adjust karega niche)
+                        db.SessionKPIWeight.Add(new SessionKPIWeight
                         {
-                            SubKPI sub = new SubKPI
-                            {
-                                KPIID = kpi.id,
-                                name = dto.SubKPIs[i].Name
-                            };
-                            db.SubKPI.Add(sub);
-                            db.SaveChanges(); // get SubKPI ID
+                            SessionID = dto.SessionId,
+                            KPIID = kpi.id,
+                            SubKPIID = subObj.id,
+                            Weight = (int)subDto.Weight // Initial input
+                        });
+                    }
+                    db.SaveChanges();
 
-                            SessionKPIWeight skw = new SessionKPIWeight
-                            {
-                                SessionID = dto.SessionId,
-                                KPIID = kpi.id,
-                                SubKPIID = sub.id,
-                                Weight = adjustedSubWeights[i]
-                            };
-                            db.SessionKPIWeight.Add(skw);
+                    // 3. GLOBAL ADJUSTMENT (The 100% Rule for Category)
+                    // Is Category (EmployeeType) ke saare KPIs nikaalein jo is Session mein hain
+                    var allWeightsInCategory = db.SessionKPIWeight
+                        .Where(w => w.SessionID == dto.SessionId &&
+                                    db.KPI.Any(k => k.id == w.KPIID && k.KPI_Employeetype == dto.EmployeeTypeId))
+                        .ToList();
+
+                    decimal currentGrandTotal = allWeightsInCategory.Sum(w => (decimal)(w.Weight ?? 0));
+
+                    if (currentGrandTotal > 0)
+                    {
+                        // Factor calculation: Target 100 / Jo abhi total hai
+                        decimal factor = 100m / currentGrandTotal;
+
+                        foreach (var w in allWeightsInCategory)
+                        {
+                            decimal adjusted = (decimal)(w.Weight ?? 0) * factor;
+                            // Rounding away from zero to keep it clean
+                            w.Weight = (int)Math.Round(adjusted, MidpointRounding.AwayFromZero);
                         }
+                        db.SaveChanges();
                     }
 
-                    db.SaveChanges();
-                    scope.Complete(); // commit transaction
+                    // 4. FINAL CHECK (Rounding Error Fix)
+                    // Kabhi kabhi rounding ki wajah se total 101 ya 99 ho jata hai. 
+                    // Hum aakhri element mein difference adjust kar dete hain.
+                    var finalWeights = db.SessionKPIWeight
+                        .Where(w => w.SessionID == dto.SessionId &&
+                                    db.KPI.Any(k => k.id == w.KPIID && k.KPI_Employeetype == dto.EmployeeTypeId))
+                        .ToList();
 
-                    return Ok(new
+                    int finalSum = finalWeights.Sum(w => w.Weight ?? 0);
+                    if (finalSum != 100 && finalWeights.Count > 0)
                     {
-                        Message = "KPI & SubKPIs added successfully",
-                        KPIWeight = finalKPIWeight,
-                        SubKPIWeights = adjustedSubWeights
-                    });
+                        int diff = 100 - finalSum;
+                        finalWeights.First().Weight += diff; // Pehle item mein adjustment add/sub kardein
+                        db.SaveChanges();
+                    }
+
+                    scope.Complete();
+                    return Ok(new { Message = "KPI Saved and Weights Adjusted to exactly 100%.", Status = "Success" });
                 }
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return InternalServerError(new Exception("Adjustment Failed: " + ex.Message));
             }
         }
 
-        // ---------------------------------
-        // GET: View KPIs with SubKPIs + Weight for a session
-        // ---------------------------------
         [HttpGet]
-        [Route("viewkpisubkpiweight/{sessionId}")]
-        public IHttpActionResult ViewKpiSubKpiWeight(int sessionId)
+        [Route("view-weights/{sid}/{eid}")]
+        public IHttpActionResult GetWeights(int sid, int eid)
         {
             try
             {
-                // 1️⃣ Get all KPIs
-                var kpiList = db.KPI.ToList();
+                var res = db.KPI
+                    .Where(k => k.KPI_Employeetype == eid)
+                    .ToList() // Memory mein laa kar mapping karein
+                    .Select(k => new {
+                        kpiId = k.id,
+                        kpiName = k.name,
+                        // Is KPI ke andar jitne sub-kpis hain unka total weight calculate karein
+                        totalKpiWeight = db.SessionKPIWeight
+                                         .Where(w => w.SessionID == sid && w.KPIID == k.id)
+                                         .Sum(w => (int?)w.Weight) ?? 0,
 
-                // 2️⃣ Get all SubKPIs
-                var subList = db.SubKPI.ToList();
+                        subKpis = (from w in db.SessionKPIWeight
+                                   join s in db.SubKPI on w.SubKPIID equals s.id
+                                   where w.SessionID == sid && w.KPIID == k.id
+                                   select new
+                                   {
+                                       subKpiId = s.id,
+                                       subKpiName = s.name,
+                                       weight = w.Weight
+                                   }).ToList()
+                    })
+                    .Where(x => x.totalKpiWeight > 0) // Sirf wo dikhayein jinka weight set hai
+                    .ToList();
 
-                // 3️⃣ Get all SessionKPIWeights for this session
-                var weights = db.SessionKPIWeight
-                                .Where(sw => sw.SessionID == sessionId)
-                                .ToList();
-
-                // 4️⃣ Build response
-                var data = kpiList.Select(k => new
-                {
-                    k.id,
-                    k.name,
-                    KPIWeight = weights.Where(w => w.KPIID == k.id).Sum(w => (int?)w.Weight) ?? 0,
-                    SubKPIs = subList
-                                .Where(sub => sub.KPIID == k.id)
-                                .Select(sub => new
-                                {
-                                    sub.id,
-                                    sub.name,
-                                    SubWeight = weights
-                                                 .Where(sw => sw.KPIID == k.id && sw.SubKPIID == sub.id)
-                                                 .Select(sw => sw.Weight)
-                                                 .FirstOrDefault()
-                                }).ToList()
-                }).ToList();
-
-                return Ok(data);
+                return Ok(res);
             }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            catch (Exception ex) { return InternalServerError(ex); }
         }
+        [HttpGet]
+        [Route("sessions")]
+        public IHttpActionResult GetSessions() => Ok(db.Session.Select(s => new { s.id, s.name }).ToList());
 
-
-        // ---------------------------------
-        // GET: List all Sessions
-        // ---------------------------------
-
-
-        // ---------------------------------
-        // GET: List all Employee Types
-        // ---------------------------------
-
-
+        [HttpGet]
+        [Route("emptypes")]
+        public IHttpActionResult GetEmpTypes() => Ok(db.EmployeeType.Select(e => new { e.id, e.type }).ToList());
     }
 }

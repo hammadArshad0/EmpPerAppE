@@ -190,6 +190,8 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Controllers\enrollment\EnrollmentController.cs" />
+    <Compile Include="Controllers\enrollment\KPISubKPIController.cs" />
     <Compile Include="Controllers\HOD\EmployeeTypeController.cs" />
     <Compile Include="Controllers\HOD\KpiController.cs" />
     <Compile Include="Controllers\HOD\PeerEvaluatorController.cs" />
@@ -226,6 +228,7 @@
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\kpi\AddKPIDto.cs" />
+    <Compile Include="Models\kpi\CreateKpiDto.cs" />
     <Compile Include="Models\Model1.Context.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
