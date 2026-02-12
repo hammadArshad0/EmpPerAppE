@@ -18,13 +18,15 @@ namespace EmpPerAppE.Models
         {
             this.PeerEvaluation = new HashSet<PeerEvaluation>();
             this.StudentEvaluation = new HashSet<StudentEvaluation>();
+            this.Questions = new HashSet<Questions>();
         }
     
         public int id { get; set; }
-        public string question { get; set; }
         public string type { get; set; }
+        public string flag { get; set; }
     
         public virtual ICollection<PeerEvaluation> PeerEvaluation { get; set; }
         public virtual ICollection<StudentEvaluation> StudentEvaluation { get; set; }
+        public virtual ICollection<Questions> Questions { get; set; }
     }
 }

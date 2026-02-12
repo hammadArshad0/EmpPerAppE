@@ -21,4 +21,13 @@ namespace EmpPerAppE.Models.kpi
         public string Name { get; set; }
         public int Weight { get; set; }
     }
+
+    // Isay add karein taake existing KPI mein naye Sub-KPIs add ho saken
+    public class DynamicSubKpiDto
+    {
+        public int SessionId { get; set; }
+        public int KpiId { get; set; }
+        public string Name { get; set; }
+        public int NewWeight { get; set; }
+    }
 }

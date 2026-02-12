@@ -2,9 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Web.Http;
+using EmpPerAppE.Models.DTO.peerEvalution;
 
 namespace EmpPerAppE.Controllers.HOD
 {
@@ -13,39 +12,53 @@ namespace EmpPerAppE.Controllers.HOD
     {
         fypempEntities db = new fypempEntities();
 
+        // 1. Get All Teachers for Selection
         [HttpGet]
-        [Route("list")]
-        public IHttpActionResult GetAll()
+        [Route("Teachers")]
+        public IHttpActionResult GetTeachers()
         {
-            try
-            {
-                var data = db.PeerEvaluator
-                    .Select(p => new
-                    {
-                        p.id,
-                        p.teacherID,
-                        TeacherName = p.Teacher.name,
-                        p.sessionID,
-                        SessionName = p.Session.name
-                    }).ToList();
-
-                return Ok(data);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            var teachers = db.Teacher.Select(t => new { t.userID, t.name, t.department }).ToList();
+            return Ok(teachers);
         }
 
+        // 2. Get Sessions
+        [HttpGet]
+        [Route("Sessions")]
+        public IHttpActionResult GetSessions()
+        {
+            var sessions = db.Session.Select(s => new { s.id, s.name }).ToList();
+            return Ok(sessions);
+        }
+
+        // 3. Add Evaluators to a Specific Session
         [HttpPost]
-        [Route("create")]
-        public IHttpActionResult Create(PeerEvaluator model)
+        [Route("Add")]
+        public IHttpActionResult AddPeerEvaluators(AddPeerEvaluatorDto model)
         {
+            if (model == null || model.TeacherIds == null || model.SessionId <= 0)
+                return BadRequest("Invalid data: Please select session and teachers.");
+
             try
             {
-                db.PeerEvaluator.Add(model);
+                foreach (var tid in model.TeacherIds)
+                {
+                    string tidStr = tid.ToString();
+
+                    // Check if already exists in this session to avoid duplicates
+                    bool exists = db.PeerEvaluator.Any(pe => pe.teacherID == tidStr && pe.sessionID == model.SessionId);
+
+                    if (!exists)
+                    {
+                        // Use full model path to avoid 'Namespace but used like Type' error
+                        db.PeerEvaluator.Add(new EmpPerAppE.Models.PeerEvaluator
+                        {
+                            teacherID = tidStr,
+                            sessionID = model.SessionId
+                        });
+                    }
+                }
                 db.SaveChanges();
-                return Ok("PeerEvaluator added successfully");
+                return Ok(new { message = "Evaluators assigned successfully for the selected session." });
             }
             catch (Exception ex)
             {
@@ -53,115 +66,38 @@ namespace EmpPerAppE.Controllers.HOD
             }
         }
 
+        // 4. Get Current Evaluators for a Session (Listing & Delete purpose)
+        [HttpGet]
+        [Route("BySession/{sessionId}")]
+        public IHttpActionResult GetPeerEvaluatorsBySession(int sessionId)
+        {
+            var evaluators = (from pe in db.PeerEvaluator
+                              join t in db.Teacher on pe.teacherID equals t.userID
+                              where pe.sessionID == sessionId
+                              select new
+                              {
+                                  assignmentId = pe.id, // Primary Key of PeerEvaluator table
+                                  t.userID,
+                                  t.name,
+                                  t.department
+                              }).ToList();
+
+            return Ok(evaluators);
+        }
+
+        // 5. Delete One by One
         [HttpDelete]
         [Route("delete/{id}")]
         public IHttpActionResult Delete(int id)
         {
-            try
-            {
-                var pe = db.PeerEvaluator.Find(id);
-                if (pe == null) return NotFound();
+            var pe = db.PeerEvaluator.Find(id);
+            if (pe == null) return NotFound();
 
-                db.PeerEvaluator.Remove(pe);
-                db.SaveChanges();
-
-                return Ok("PeerEvaluator deleted successfully");
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
-
-        }
-
-            ///---------------------
-            ///[HttpGet]
-            [Route("Teachers")]
-            public IHttpActionResult GetTeachers()
-            {
-                var teachers = db.Teacher
-                    .Select(t => new
-                    {
-                        t.userID,
-                        t.name,
-                        t.department
-                    })
-                    .ToList();
-
-                return Ok(teachers);
-            }
-
-
-            [HttpGet]
-            [Route("Sessions")]
-            public IHttpActionResult GetSessions()
-            {
-                var sessions = db.Session
-                    .Select(s => new
-                    {
-                        s.id,
-                        s.name
-                    })
-                    .ToList();
-
-                return Ok(sessions);
-            }
-
-
-            //[HttpPost]
-            //[Route("Add")]
-            //public IHttpActionResult AddPeerEvaluators(AddPeerEvaluatorDto model)
-            //{
-            //    if (model == null || model.TeacherIds == null || model.TeacherIds.Count == 0)
-            //        return BadRequest("Invalid data");
-
-            //    int sessionId = model.SessionId;
-
-            //    foreach (var teacherId in model.TeacherIds)
-            //    {
-            //        string teacherIdStr = teacherId.ToString();
-
-            //        bool alreadyExists = db.PeerEvaluator.Any(pe =>
-            //            pe.teacherID == teacherIdStr &&
-            //            pe.sessionID == sessionId
-            //        );
-
-            //        if (!alreadyExists)
-            //        {
-            //            db.PeerEvaluator.Add(new PeerEvaluator
-            //            {
-            //                teacherID = teacherIdStr,
-            //                sessionID = sessionId
-            //            });
-            //        }
-            //    }
-
-            //    db.SaveChanges();
-            //    return Ok("Peer evaluators added successfully");
-            //}
-
-
-            [HttpGet]
-            [Route("BySession/{sessionId}")]
-            public IHttpActionResult GetPeerEvaluatorsBySession(int sessionId)
-            {
-                var evaluators = (from pe in db.PeerEvaluator
-                                  join t in db.Teacher on pe.teacherID equals t.userID
-                                  where pe.sessionID == sessionId
-                                  select new
-                                  {
-                                      t.userID,
-                                      t.name,
-                                      t.department
-                                  }).ToList();
-
-
-                if (evaluators.Count == 0) return BadRequest("No Teacher Found ");
-
-                return Ok(evaluators);
-            }
-
+            db.PeerEvaluator.Remove(pe);
+            db.SaveChanges();
+            return Ok(new { message = "Evaluator removed from this session." });
         }
     }
 
 
+}

@@ -190,28 +190,37 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Controllers\Director\QuestionsController.cs" />
     <Compile Include="Controllers\enrollment\EnrollmentController.cs" />
-    <Compile Include="Controllers\enrollment\KPISubKPIController.cs" />
+    <Compile Include="Controllers\HOD\CourseManagementController.cs" />
     <Compile Include="Controllers\HOD\EmployeeTypeController.cs" />
     <Compile Include="Controllers\HOD\KpiController.cs" />
     <Compile Include="Controllers\HOD\PeerEvaluatorController.cs" />
     <Compile Include="Controllers\HOD\SessionController.cs" />
-    <Compile Include="Controllers\HOD\SubKPIController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\Login\UsersController.cs" />
+    <Compile Include="Controllers\student\StudentEvalutionController.cs" />
     <Compile Include="Controllers\student\CourseController.cs" />
     <Compile Include="Controllers\student\StudentController.cs" />
+    <Compile Include="Controllers\Teacher\PeerEvalutionController.cs" />
     <Compile Include="Controllers\Teacher\TeacherController.cs" />
     <Compile Include="Controllers\ValuesController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Models\AddPeerEvaluatorDto.cs" />
     <Compile Include="Models\ClassheldReport.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\Course.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
+    <Compile Include="Models\DTO\peerEvalution\PeerSubmissionModel.cs" />
+    <Compile Include="Models\DTO\QuestionCreateDto.cs" />
+    <Compile Include="Models\DTO\QuestionnaireListDto.cs" />
+    <Compile Include="Models\DTO\SaveQuestionnaireChangesDto.cs" />
+    <Compile Include="Models\DTO\studentevalution\EvaluationSubmissionDto.cs" />
+    <Compile Include="Models\DTO\ToggleQuestionnaireDto.cs" />
     <Compile Include="Models\EmployeeType.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
@@ -228,7 +237,6 @@
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\kpi\AddKPIDto.cs" />
-    <Compile Include="Models\kpi\CreateKpiDto.cs" />
     <Compile Include="Models\Model1.Context.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -251,6 +259,9 @@
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\Questionare.cs">
+      <DependentUpon>Model1.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Models\Questions.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\Session.cs">
@@ -362,6 +373,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="App_Data\" />
+    <Folder Include="Views\Question\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Scripts\bootstrap.min.js.map" />

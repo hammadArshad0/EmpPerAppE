@@ -25,5 +25,6 @@ namespace EmpPerAppE.Models
         public virtual PeerEvaluator PeerEvaluator { get; set; }
         public virtual Teacher Teacher { get; set; }
         public virtual Questionare Questionare { get; set; }
+        public virtual Questions Questions { get; set; }
     }
 }
