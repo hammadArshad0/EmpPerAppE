@@ -95,8 +95,16 @@
             <PropertyRef Name="id" />
           </Key>
           <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="question" Type="varchar" MaxLength="200" />
-          <Property Name="type" Type="varchar" MaxLength="2" />
+          <Property Name="type" Type="varchar" MaxLength="50" />
+          <Property Name="flag" Type="varchar" MaxLength="10" />
+        </EntityType>
+        <EntityType Name="Questions">
+          <Key>
+            <PropertyRef Name="QuestionID" />
+          </Key>
+          <Property Name="QuestionID" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="QuestionareID" Type="int" Nullable="false" />
+          <Property Name="QuestionText" Type="nvarchar" MaxLength="500" Nullable="false" />
         </EntityType>
         <EntityType Name="Session">
           <Key>
@@ -338,12 +346,12 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__PeerEvalu__quest__787EE5A0">
-          <End Role="Questionare" Type="Self.Questionare" Multiplicity="0..1" />
+        <Association Name="FK__PeerEvalu__quest__3A4CA8FD">
+          <End Role="Questions" Type="Self.Questions" Multiplicity="0..1" />
           <End Role="PeerEvaluation" Type="Self.PeerEvaluation" Multiplicity="*" />
           <ReferentialConstraint>
-            <Principal Role="Questionare">
-              <PropertyRef Name="id" />
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
             </Principal>
             <Dependent Role="PeerEvaluation">
               <PropertyRef Name="questionID" />
@@ -446,18 +454,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__StudentEv__quest__6FE99F9F">
-          <End Role="Questionare" Type="Self.Questionare" Multiplicity="0..1" />
-          <End Role="StudentEvaluation" Type="Self.StudentEvaluation" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Questionare">
-              <PropertyRef Name="id" />
-            </Principal>
-            <Dependent Role="StudentEvaluation">
-              <PropertyRef Name="questionID" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__SubKPI__KPIID__5070F446">
           <End Role="KPI" Type="Self.KPI" Multiplicity="0..1" />
           <End Role="SubKPI" Type="Self.SubKPI" Multiplicity="*" />
@@ -482,6 +478,30 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_Questions_Questionare">
+          <End Role="Questionare" Type="Self.Questionare" Multiplicity="1" />
+          <End Role="Questions" Type="Self.Questions" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questionare">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="Questions">
+              <PropertyRef Name="QuestionareID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_StudentEvaluation_Questions">
+          <End Role="Questions" Type="Self.Questions" Multiplicity="0..1" />
+          <End Role="StudentEvaluation" Type="Self.StudentEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
+            </Principal>
+            <Dependent Role="StudentEvaluation">
+              <PropertyRef Name="questionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <EntityContainer Name="fypempModelStoreContainer">
           <EntitySet Name="ClassheldReport" EntityType="Self.ClassheldReport" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Course" EntityType="Self.Course" Schema="dbo" store:Type="Tables" />
@@ -493,6 +513,7 @@
           <EntitySet Name="PeerEvaluation" EntityType="Self.PeerEvaluation" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="PeerEvaluator" EntityType="Self.PeerEvaluator" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Questionare" EntityType="Self.Questionare" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Questions" EntityType="Self.Questions" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Session" EntityType="Self.Session" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="SessionKPIWeight" EntityType="Self.SessionKPIWeight" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Student" EntityType="Self.Student" Schema="dbo" store:Type="Tables" />
@@ -560,8 +581,8 @@
             <End Role="Teacher" EntitySet="Teacher" />
             <End Role="PeerEvaluation" EntitySet="PeerEvaluation" />
           </AssociationSet>
-          <AssociationSet Name="FK__PeerEvalu__quest__787EE5A0" Association="Self.FK__PeerEvalu__quest__787EE5A0">
-            <End Role="Questionare" EntitySet="Questionare" />
+          <AssociationSet Name="FK__PeerEvalu__quest__3A4CA8FD" Association="Self.FK__PeerEvalu__quest__3A4CA8FD">
+            <End Role="Questions" EntitySet="Questions" />
             <End Role="PeerEvaluation" EntitySet="PeerEvaluation" />
           </AssociationSet>
           <AssociationSet Name="FK__PeerEvalu__sessi__73BA3083" Association="Self.FK__PeerEvalu__sessi__73BA3083">
@@ -596,10 +617,6 @@
             <End Role="Enrollment" EntitySet="Enrollment" />
             <End Role="StudentEvaluation" EntitySet="StudentEvaluation" />
           </AssociationSet>
-          <AssociationSet Name="FK__StudentEv__quest__6FE99F9F" Association="Self.FK__StudentEv__quest__6FE99F9F">
-            <End Role="Questionare" EntitySet="Questionare" />
-            <End Role="StudentEvaluation" EntitySet="StudentEvaluation" />
-          </AssociationSet>
           <AssociationSet Name="FK__SubKPI__KPIID__5070F446" Association="Self.FK__SubKPI__KPIID__5070F446">
             <End Role="KPI" EntitySet="KPI" />
             <End Role="SubKPI" EntitySet="SubKPI" />
@@ -607,6 +624,14 @@
           <AssociationSet Name="FK__Teacher__userID__628FA481" Association="Self.FK__Teacher__userID__628FA481">
             <End Role="Users" EntitySet="Users" />
             <End Role="Teacher" EntitySet="Teacher" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Questions_Questionare" Association="Self.FK_Questions_Questionare">
+            <End Role="Questionare" EntitySet="Questionare" />
+            <End Role="Questions" EntitySet="Questions" />
+          </AssociationSet>
+          <AssociationSet Name="FK_StudentEvaluation_Questions" Association="Self.FK_StudentEvaluation_Questions">
+            <End Role="Questions" EntitySet="Questions" />
+            <End Role="StudentEvaluation" EntitySet="StudentEvaluation" />
           </AssociationSet>
         </EntityContainer>
       </Schema></edmx:StorageModels>
@@ -714,6 +739,7 @@
           <NavigationProperty Name="PeerEvaluator" Relationship="Self.FK__PeerEvalu__evalu__76969D2E" FromRole="PeerEvaluation" ToRole="PeerEvaluator" />
           <NavigationProperty Name="Teacher" Relationship="Self.FK__PeerEvalu__evalu__778AC167" FromRole="PeerEvaluation" ToRole="Teacher" />
           <NavigationProperty Name="Questionare" Relationship="Self.FK__PeerEvalu__quest__787EE5A0" FromRole="PeerEvaluation" ToRole="Questionare" />
+          <NavigationProperty Name="Questions" Relationship="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" FromRole="PeerEvaluation" ToRole="Questions" />
         </EntityType>
         <EntityType Name="PeerEvaluator">
           <Key>
@@ -731,10 +757,11 @@
             <PropertyRef Name="id" />
           </Key>
           <Property Name="id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="question" Type="String" MaxLength="200" FixedLength="false" Unicode="false" />
-          <Property Name="type" Type="String" MaxLength="2" FixedLength="false" Unicode="false" />
+          <Property Name="type" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
           <NavigationProperty Name="PeerEvaluation" Relationship="Self.FK__PeerEvalu__quest__787EE5A0" FromRole="Questionare" ToRole="PeerEvaluation" />
           <NavigationProperty Name="StudentEvaluation" Relationship="Self.FK__StudentEv__quest__6FE99F9F" FromRole="Questionare" ToRole="StudentEvaluation" />
+          <Property Name="flag" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <NavigationProperty Name="Questions" Relationship="fypempModel.FK_Questions_Questionare" FromRole="Questionare" ToRole="Questions" />
         </EntityType>
         <EntityType Name="Session">
           <Key>
@@ -782,6 +809,7 @@
           <Property Name="score" Type="Int32" />
           <NavigationProperty Name="Enrollment" Relationship="Self.FK__StudentEv__enrol__6EF57B66" FromRole="StudentEvaluation" ToRole="Enrollment" />
           <NavigationProperty Name="Questionare" Relationship="Self.FK__StudentEv__quest__6FE99F9F" FromRole="StudentEvaluation" ToRole="Questionare" />
+          <NavigationProperty Name="Questions" Relationship="fypempModel.FK_StudentEvaluation_Questions" FromRole="StudentEvaluation" ToRole="Questions" />
         </EntityType>
         <EntityType Name="SubKPI">
           <Key>
@@ -1258,6 +1286,19 @@
             <End Role="EmployeeType" EntitySet="EmployeeType" />
             <End Role="KPI" EntitySet="KPI" />
           </AssociationSet>
+          <EntitySet Name="Questions" EntityType="fypempModel.Questions" />
+          <AssociationSet Name="FK_Questions_Questionare" Association="fypempModel.FK_Questions_Questionare">
+            <End Role="Questionare" EntitySet="Questionare" />
+            <End Role="Questions" EntitySet="Questions" />
+          </AssociationSet>
+          <AssociationSet Name="FK__PeerEvalu__quest__3A4CA8FD" Association="fypempModel.FK__PeerEvalu__quest__3A4CA8FD">
+            <End Role="Questions" EntitySet="Questions" />
+            <End Role="PeerEvaluation" EntitySet="PeerEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_StudentEvaluation_Questions" Association="fypempModel.FK_StudentEvaluation_Questions">
+            <End Role="Questions" EntitySet="Questions" />
+            <End Role="StudentEvaluation" EntitySet="StudentEvaluation" />
+          </AssociationSet>
         </EntityContainer>
         <Association Name="FK__KPI__KPI_Employe__14270015">
           <End Type="fypempModel.EmployeeType" Role="EmployeeType" Multiplicity="0..1" />
@@ -1268,6 +1309,53 @@
             </Principal>
             <Dependent Role="KPI">
               <PropertyRef Name="KPI_Employeetype" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <EntityType Name="Questions">
+          <Key>
+            <PropertyRef Name="QuestionID" />
+          </Key>
+          <Property Name="QuestionID" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="QuestionareID" Type="Int32" Nullable="false" />
+          <Property Name="QuestionText" Type="String" Nullable="false" MaxLength="500" FixedLength="false" Unicode="true" />
+          <NavigationProperty Name="Questionare" Relationship="fypempModel.FK_Questions_Questionare" FromRole="Questions" ToRole="Questionare" />
+          <NavigationProperty Name="PeerEvaluation" Relationship="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" FromRole="Questions" ToRole="PeerEvaluation" />
+          <NavigationProperty Name="StudentEvaluation" Relationship="fypempModel.FK_StudentEvaluation_Questions" FromRole="Questions" ToRole="StudentEvaluation" />
+        </EntityType>
+        <Association Name="FK_Questions_Questionare">
+          <End Type="fypempModel.Questionare" Role="Questionare" Multiplicity="1" />
+          <End Type="fypempModel.Questions" Role="Questions" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questionare">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="Questions">
+              <PropertyRef Name="QuestionareID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK__PeerEvalu__quest__3A4CA8FD">
+          <End Type="fypempModel.Questions" Role="Questions" Multiplicity="0..1" />
+          <End Type="fypempModel.PeerEvaluation" Role="PeerEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
+            </Principal>
+            <Dependent Role="PeerEvaluation">
+              <PropertyRef Name="questionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_StudentEvaluation_Questions">
+          <End Type="fypempModel.Questions" Role="Questions" Multiplicity="0..1" />
+          <End Type="fypempModel.StudentEvaluation" Role="StudentEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
+            </Principal>
+            <Dependent Role="StudentEvaluation">
+              <PropertyRef Name="questionID" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -1374,8 +1462,8 @@
           <EntitySetMapping Name="Questionare">
             <EntityTypeMapping TypeName="fypempModel.Questionare">
               <MappingFragment StoreEntitySet="Questionare">
+                <ScalarProperty Name="flag" ColumnName="flag" />
                 <ScalarProperty Name="id" ColumnName="id" />
-                <ScalarProperty Name="question" ColumnName="question" />
                 <ScalarProperty Name="type" ColumnName="type" />
               </MappingFragment>
             </EntityTypeMapping>
@@ -1444,6 +1532,15 @@
                 <ScalarProperty Name="role" ColumnName="role" />
                 <ScalarProperty Name="profileImagePath" ColumnName="profileImagePath" />
                 <ScalarProperty Name="isActive" ColumnName="isActive" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Questions">
+            <EntityTypeMapping TypeName="fypempModel.Questions">
+              <MappingFragment StoreEntitySet="Questions">
+                <ScalarProperty Name="QuestionText" ColumnName="QuestionText" />
+                <ScalarProperty Name="QuestionareID" ColumnName="QuestionareID" />
+                <ScalarProperty Name="QuestionID" ColumnName="QuestionID" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>

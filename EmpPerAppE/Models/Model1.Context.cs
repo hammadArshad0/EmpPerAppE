@@ -42,5 +42,6 @@ namespace EmpPerAppE.Models
         public DbSet<SubKPI> SubKPI { get; set; }
         public DbSet<Teacher> Teacher { get; set; }
         public DbSet<Users> Users { get; set; }
+        public DbSet<Questions> Questions { get; set; }
     }
 }
