@@ -17,6 +17,7 @@ namespace EmpPerAppE.Models
         public Questions()
         {
             this.PeerEvaluation = new HashSet<PeerEvaluation>();
+            this.StudentEvaluation = new HashSet<StudentEvaluation>();
         }
     
         public int QuestionID { get; set; }
@@ -25,5 +26,6 @@ namespace EmpPerAppE.Models
     
         public virtual Questionare Questionare { get; set; }
         public virtual ICollection<PeerEvaluation> PeerEvaluation { get; set; }
+        public virtual ICollection<StudentEvaluation> StudentEvaluation { get; set; }
     }
 }

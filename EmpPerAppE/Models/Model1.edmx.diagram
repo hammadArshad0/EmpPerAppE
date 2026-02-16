@@ -52,6 +52,7 @@
         <EntityTypeShape EntityType="fypempModel.Questions" Width="1.5" PointX="8.25" PointY="12.625" />
         <AssociationConnector Association="fypempModel.FK_Questions_Questionare" />
         <AssociationConnector Association="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" />
+        <AssociationConnector Association="fypempModel.FK_StudentEvaluation_Questions" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

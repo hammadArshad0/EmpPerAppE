@@ -21,5 +21,6 @@ namespace EmpPerAppE.Models
     
         public virtual Enrollment Enrollment { get; set; }
         public virtual Questionare Questionare { get; set; }
+        public virtual Questions Questions { get; set; }
     }
 }

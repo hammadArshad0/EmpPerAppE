@@ -1,16 +1,16 @@
 ﻿using EmpPerAppE.Models;
 using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Linq;
 using System.Web.Http;
-using EmpPerAppE.Models.DTO.peerEvalution;
 
 namespace EmpPerAppE.Controllers.Teacher
 {
-    [RoutePrefix("api/Peer")]
+    [RoutePrefix("api/TeacherDashboard")]
     public class PeerEvalutionController : ApiController
     {
-        fypempEntities db = new fypempEntities();
+        private fypempEntities db = new fypempEntities();
 
         public PeerEvalutionController()
         {
@@ -18,129 +18,115 @@ namespace EmpPerAppE.Controllers.Teacher
             db.Configuration.LazyLoadingEnabled = false;
         }
 
-        // --- STEP 1: LOGIN & ACCESS CHECK ---
-        // Ab hum current session nahi uthayenge, balkay check karenge ke ye teacher
-        // kisi bhi active/latest session mein Peer Evaluator hai ya nahi.
+        // 1. FIXED: userId changed from int to string
         [HttpGet]
-        [Route("CheckPeerStatus/{userId}")]
-        public IHttpActionResult CheckPeerStatus(string userId)
-        {
-            // Sabse pehle wo session dhoondein jahan ye teacher Peer Evaluator hai
-            // OrderByDescending isliye taake agar multiple sessions mein ho toh latest wala milay
-            var assignment = db.PeerEvaluator
-                               .Where(p => p.teacherID == userId)
-                               .OrderByDescending(p => p.sessionID)
-                               .FirstOrDefault();
-
-            if (assignment == null)
-            {
-                return Ok(new { isPeerEvaluator = false, message = "You are not assigned as a Peer Evaluator." });
-            }
-
-            return Ok(new
-            {
-                isPeerEvaluator = true,
-                sessionId = assignment.sessionID,
-                assignmentId = assignment.id
-            });
-        }
-
-        // --- STEP 2: GET TEACHERS LIST ---
-        [HttpGet]
-        [Route("GetTeachersToEvaluate/{evaluatorUserId}")]
-        public IHttpActionResult GetTeachersToEvaluate(string evaluatorUserId)
+        [Route("IsEvaluator/{userId}")]
+        public IHttpActionResult IsEvaluator(string userId)
         {
             try
             {
-                // 1. Teacher ki latest assignment uthayen
-                var assignment = db.PeerEvaluator
-                                   .Where(p => p.teacherID == evaluatorUserId)
-                                   .OrderByDescending(p => p.sessionID)
-                                   .FirstOrDefault();
+                bool exists = db.PeerEvaluator.Any(e => e.teacherID == userId);
+                return Ok(new { isEvaluator = exists });
+            }
+            catch (Exception ex) { return InternalServerError(ex); }
+        }
 
-                if (assignment == null) return Unauthorized();
-
-                int currentSessionId = (int)assignment.sessionID;
-
-                // 2. Usi SPECIFIC Session ke teachers Enrollment se layen
-                var teachersList = db.Enrollment
-                    .Where(e => e.sessionID == currentSessionId && e.teacherID != evaluatorUserId)
-                    .Select(e => new
+        // 2. FIXED: evaluatorID changed from int to string to accept "T002"
+        [HttpGet]
+        [Route("GetSubmittedEvaluations/{evaluatorID}")]
+        public IHttpActionResult GetSubmittedEvaluations(string evaluatorID)
+        {
+            try
+            {
+                // Note: evaluatorID should be compared as string if it's alphanumeric
+                var submitted = db.PeerEvaluation
+                    .Where(p => p.evaluatorID.ToString() == evaluatorID)
+                    .Select(p => new
                     {
-                        TeacherID = e.teacherID,
-                        TeacherName = e.Teacher.name,
-                        CourseCode = e.courseCode,
-                        CourseTitle = e.Course.title,
-                        // Status Check: Kya is evaluator ne is teacher ko is course mein evaluate kar liya hai?
-                        IsEvaluated = db.PeerEvaluation.Any(pe =>
-                            pe.evaluatorID == assignment.id &&
-                            pe.evaluateeID == e.teacherID &&
-                            pe.courseCode == e.courseCode)
+                        TeacherID = p.evaluateeID,
+                        CourseCode = p.courseCode
                     })
                     .Distinct()
                     .ToList();
-
-                return Ok(teachersList);
+                return Ok(submitted);
             }
-            catch (Exception ex)
-            {
-                return InternalServerError(new Exception("Error fetching colleagues: " + ex.Message));
-            }
+            catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        // --- STEP 3: GET PEER QUESTIONS ---
         [HttpGet]
-        [Route("GetPeerQuestions")]
-        public IHttpActionResult GetPeerQuestions()
+        [Route("GetTeachersWithCourses")]
+        public IHttpActionResult GetTeachersWithCourses()
         {
-            var questions = db.Questions
-                .Where(q => q.Questionare.type == "Peer" && q.Questionare.flag == "1")
-                .Select(q => new { q.QuestionID, q.QuestionText })
-                .ToList();
-
-            return Ok(questions);
+            try
+            {
+                var data = db.Enrollment
+                    .GroupBy(e => e.teacherID)
+                    .Select(g => new
+                    {
+                        TeacherID = g.Key,
+                        TeacherName = db.Teacher.Where(t => t.userID == g.Key).Select(t => t.name).FirstOrDefault(),
+                        Courses = g.Select(x => x.courseCode).Distinct().ToList()
+                    })
+                    .ToList();
+                return Ok(data);
+            }
+            catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        // --- STEP 4: SUBMIT DATA ---
-        [HttpPost]
-        [Route("SubmitPeerResults")]
-        public IHttpActionResult SubmitPeerResults(PeerSubmissionModel model)
+        [HttpGet]
+        [Route("GetActiveQuestionnaire/{type}")]
+        public IHttpActionResult GetActiveQuestionnaire(string type)
         {
-            if (model == null || model.Answers == null) return BadRequest("Invalid Data");
+            try
+            {
+                var questionnaire = db.Questionare
+                    .Include(q => q.Questions)
+                    .Where(q => q.flag == "1" && q.type == type)
+                    .Select(q => new
+                    {
+                        QuestionareID = q.id,
+                        Type = q.type,
+                        Flag = q.flag,
+                        Questions = q.Questions.Select(ques => new
+                        {
+                            ques.QuestionID,
+                            ques.QuestionText
+                        }).ToList()
+                    })
+                    .FirstOrDefault();
+
+                if (questionnaire == null)
+                    return Ok(new { Message = "No active questionnaire found" });
+
+                return Ok(questionnaire);
+            }
+            catch (Exception ex) { return InternalServerError(ex); }
+        }
+
+        [HttpPost]
+        [Route("SubmitEvaluation")]
+        public IHttpActionResult SubmitEvaluation([FromBody] List<PeerEvaluation> evaluations)
+        {
+            if (evaluations == null || !evaluations.Any())
+                return BadRequest("Invalid submission");
 
             try
             {
-                // Teacher ki assignment ID nikaalna zaroori hai foreign key ke liye
-                var assignment = db.PeerEvaluator
-                                   .Where(p => p.teacherID == model.EvaluatorUserId)
-                                   .OrderByDescending(p => p.sessionID)
-                                   .FirstOrDefault();
-
-                if (assignment == null) return BadRequest("Unauthorized Evaluator.");
-
-                foreach (var ans in model.Answers)
+                foreach (var eval in evaluations)
                 {
-                    EmpPerAppE.Models.PeerEvaluation pe = new EmpPerAppE.Models.PeerEvaluation
+                    db.PeerEvaluation.Add(new PeerEvaluation
                     {
-                        evaluatorID = assignment.id,
-                        evaluateeID = model.EvaluateeId,
-                        questionID = ans.QuestionId,
-                        courseCode = model.CourseCode,
-                        score = ans.Score
-                    };
-                    db.PeerEvaluation.Add(pe);
+                        evaluatorID = eval.evaluatorID,
+                        evaluateeID = eval.evaluateeID,
+                        questionID = eval.questionID,
+                        courseCode = eval.courseCode,
+                        score = eval.score
+                    });
                 }
-
                 db.SaveChanges();
-                return Ok(new { Message = "Peer Evaluation Submitted Successfully!" });
+                return Ok(new { success = true });
             }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            catch (Exception ex) { return InternalServerError(ex); }
         }
     }
-
-    
-    
 }

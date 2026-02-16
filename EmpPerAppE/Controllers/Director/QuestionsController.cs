@@ -1,11 +1,9 @@
 ﻿using EmpPerAppE.Models;
 using EmpPerAppE.Models.DTO;
 using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Entity;
 using System.Linq;
 using System.Web.Http;
+using System.Data.Entity;
 
 namespace EmpPerAppE.Controllers.Director
 {
@@ -16,44 +14,42 @@ namespace EmpPerAppE.Controllers.Director
 
         public QuestionsController()
         {
-            // Circular reference errors se bachne ke liye
             db.Configuration.ProxyCreationEnabled = false;
             db.Configuration.LazyLoadingEnabled = false;
         }
 
-        // 1. CREATE: Naya Questionnaire aur uske Questions save karne ke liye
+        // ================================
+        // 1️⃣ CREATE QUESTIONNAIRE
+        // ================================
         [HttpPost]
         [Route("Create")]
         public IHttpActionResult CreateQuestionnaire(QuestionCreateDto model)
         {
             if (model == null || model.Questions == null || model.Questions.Count == 0)
-            {
-                return BadRequest("Invalid data: Evaluation type and questions are required.");
-            }
+                return BadRequest("Evaluation type and questions are required.");
 
             try
             {
-                // Step A: Header create karein
+                // Create Header
                 var questionnaire = new Questionare
                 {
                     type = model.EvaluationType,
-                    flag = "0" // Default offline rehta hai create par
+                    flag = "0"
                 };
 
                 db.Questionare.Add(questionnaire);
-                db.SaveChanges(); // 🔥 Yahan ID generate hogi
+                db.SaveChanges(); // ID generated
 
-                // Step B: Questions insert karein loop ke saath (EF 5 compatible)
+                // Insert Questions
                 foreach (var qText in model.Questions)
                 {
                     if (!string.IsNullOrWhiteSpace(qText))
                     {
-                        var question = new Questions
+                        db.Questions.Add(new Questions
                         {
                             QuestionareID = questionnaire.id,
                             QuestionText = qText
-                        };
-                        db.Questions.Add(question);
+                        });
                     }
                 }
 
@@ -61,18 +57,19 @@ namespace EmpPerAppE.Controllers.Director
 
                 return Ok(new
                 {
-                    message = "Questionnaire saved successfully",
+                    message = "Questionnaire created successfully",
                     QuestionnaireId = questionnaire.id
                 });
             }
             catch (Exception ex)
             {
-                var inner = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                return BadRequest("Create Error: " + inner);
+                return BadRequest(ex.InnerException?.Message ?? ex.Message);
             }
         }
 
-        // 2. GET ALL: Dashboard list ke liye
+        // ================================
+        // 2️⃣ GET ALL QUESTIONNAIRES
+        // ================================
         [HttpGet]
         [Route("GetAll")]
         public IHttpActionResult GetAll()
@@ -90,52 +87,49 @@ namespace EmpPerAppE.Controllers.Director
             return Ok(data);
         }
 
-        // 3. GET BY ID: Edit page par data load karne ke liye
+        // ================================
+        // 3️⃣ GET BY ID
+        // ================================
         [HttpGet]
         [Route("GetById/{id}")]
         public IHttpActionResult GetById(int id)
         {
-            try
+            var questionnaire = db.Questionare
+                .Include(q => q.Questions)
+                .FirstOrDefault(q => q.id == id);
+
+            if (questionnaire == null)
+                return NotFound();
+
+            var result = new
             {
-                var questionnaire = db.Questionare
-                    .Include(q => q.Questions)
-                    .FirstOrDefault(q => q.id == id);
+                id = questionnaire.id,
+                evaluationType = questionnaire.type,
+                questions = questionnaire.Questions
+                    .Select(q => new
+                    {
+                        id = q.QuestionID,
+                        questionText = q.QuestionText
+                    }).ToList()
+            };
 
-                if (questionnaire == null) return NotFound();
-
-                var result = new
-                {
-                    id = questionnaire.id,
-                    evaluationType = questionnaire.type,
-                    questions = questionnaire.Questions
-                        .Select(qq => new
-                        {
-                            id = qq.QuestionID,
-                            questionText = qq.QuestionText
-                        })
-                        .ToList()
-                };
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            return Ok(result);
         }
 
-        // 4. TOGGLE: Active/Inactive status switch karne ke liye
+        // ================================
+        // 4️⃣ TOGGLE ACTIVE / INACTIVE
+        // ================================
         [HttpPost]
         [Route("Toggle")]
         public IHttpActionResult ToggleQuestionnaire(ToggleQuestionnaireDto model)
         {
             var questionnaire = db.Questionare.Find(model.QuestionnaireId);
-            if (questionnaire == null) return NotFound();
+            if (questionnaire == null)
+                return NotFound();
 
             if (model.TurnOn)
             {
-                // Check karein ke is type ka koi aur form pehle se Active na ho
-                var alreadyActive = db.Questionare.Any(q =>
+                bool alreadyActive = db.Questionare.Any(q =>
                     q.type == questionnaire.type &&
                     q.flag == "1" &&
                     q.id != questionnaire.id
@@ -155,36 +149,37 @@ namespace EmpPerAppE.Controllers.Director
             return Ok(new { message = "Status updated successfully" });
         }
 
-        // 5. SAVE ALL CHANGES: Edit page par Add, Update aur Delete handle karne ke liye
+        // ================================
+        // 5️⃣ SAVE ALL CHANGES (EDIT PAGE)
+        // ================================
         [HttpPost]
         [Route("SaveAllChanges")]
         public IHttpActionResult SaveAllChanges(SaveQuestionnaireChangesDto model)
         {
-            if (model == null) return BadRequest("Invalid data");
+            if (model == null)
+                return BadRequest("Invalid data");
 
             try
             {
-                // A. DELETE: Purane sawalat remove karein
+                // DELETE
                 if (model.DeletedIds != null && model.DeletedIds.Any())
                 {
                     foreach (var id in model.DeletedIds)
                     {
-                        var qToDelete = db.Questions.Find(id);
-                        if (qToDelete != null)
-                        {
-                            db.Questions.Remove(qToDelete);
-                        }
+                        var q = db.Questions.Find(id);
+                        if (q != null)
+                            db.Questions.Remove(q);
                     }
                 }
 
-                // B. ADD & UPDATE:
+                // ADD & UPDATE
                 if (model.Questions != null)
                 {
                     foreach (var q in model.Questions)
                     {
-                        if (q.Id == 0) // Naya Question add ho raha hai
+                        if (q.Id == 0) // NEW
                         {
-                            if (!string.IsNullOrEmpty(q.QuestionText))
+                            if (!string.IsNullOrWhiteSpace(q.QuestionText))
                             {
                                 db.Questions.Add(new Questions
                                 {
@@ -193,14 +188,12 @@ namespace EmpPerAppE.Controllers.Director
                                 });
                             }
                         }
-                        else // Purana Question update ho raha hai
+                        else // UPDATE
                         {
                             var existing = db.Questions.Find(q.Id);
                             if (existing != null)
                             {
                                 existing.QuestionText = q.QuestionText;
-                                // EF 5 Force Update
-                                db.Entry(existing).State = EntityState.Modified;
                             }
                         }
                     }
@@ -211,14 +204,16 @@ namespace EmpPerAppE.Controllers.Director
             }
             catch (Exception ex)
             {
-                var inner = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                return BadRequest("Update Error: " + inner);
+                return BadRequest(ex.InnerException?.Message ?? ex.Message);
             }
         }
 
+
         protected override void Dispose(bool disposing)
         {
-            if (disposing) db.Dispose();
+            if (disposing)
+                db.Dispose();
+
             base.Dispose(disposing);
         }
     }

@@ -8,7 +8,7 @@ using EmpPerAppE.Models.DTO.studentevalution;
 
 namespace EmpPerAppE.Controllers
 {
-    [RoutePrefix("api/StudentEvaluation")]
+    [RoutePrefix("api/Student")]
     public class StudentEvalutionController : ApiController
     {
         private fypempEntities db = new fypempEntities();
@@ -19,10 +19,10 @@ namespace EmpPerAppE.Controllers
             db.Configuration.LazyLoadingEnabled = false;
         }
 
-        // 1. GET: Student ke enrolled courses dikhane ke liye
+        // 1. GET: Enrolled courses for student
         [HttpGet]
-        [Route("GetCourses/{studentId}")]
-        public IHttpActionResult GetCourses(string studentId)
+        [Route("GetStudentEnrollments/{studentId}")]
+        public IHttpActionResult GetStudentEnrollments(string studentId)
         {
             try
             {
@@ -30,72 +30,69 @@ namespace EmpPerAppE.Controllers
                     .Where(e => e.studentID == studentId)
                     .Select(e => new
                     {
-                        studentName = e.Student.name,
                         EnrollmentId = e.id,
                         CourseCode = e.courseCode,
                         CourseTitle = e.Course.title,
                         TeacherName = e.Teacher.name,
                         TeacherId = e.teacherID,
-                        // Logic: Agar is enrollment ID ke against pehle se evaluation exist karti hai toh status change kar dein
+                        SessionName = e.Session.name,
+                        // Dashboard par status dikhane ke liye
                         IsEvaluated = db.StudentEvaluation.Any(se => se.enrollmentID == e.id)
                     })
                     .ToList();
+
+                if (data.Count == 0)
+                    return NotFound();
 
                 return Ok(data);
             }
             catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest("Error fetching courses: " + ex.Message);
             }
         }
 
-  
-[HttpGet]
-    [Route("GetEvaluationForm")]
-    public IHttpActionResult GetEvaluationForm()
-    {
-        try
+        // 2. GET: Active Questionnaire (Sync with React fetch)
+        [HttpGet]
+        [Route("GetActiveQuestionnaire/{type}")]
+        public IHttpActionResult GetActiveQuestionnaire(string type)
         {
-            // 1. Database se Questionnaire aur uske sawalat sath hi load karein
-            var questionnaire = db.Questionare
-                .Include(q => q.Questions) // Yeh sawalat ko khich kar layega
-                .Where(q => q.type == "S" && q.flag == "1")
-                .FirstOrDefault();
-
-            // 2. Agar null hai ya sawalat khali hain toh error handle karein
-            if (questionnaire == null)
-                return BadRequest("Active Student Questionnaire not found.");
-
-            if (questionnaire.Questions == null || !questionnaire.Questions.Any())
-                return BadRequest("Questionnaire found but it has no questions.");
-
-            // 3. Simple JSON object return karein
-            var response = new
+            try
             {
-                QuestionnaireId = questionnaire.id,
-                Questions = questionnaire.Questions.Select(qq => new
-                {
-                    QuestionId = qq.QuestionID,
-                    Text = qq.QuestionText
-                }).ToList()
-            };
+                var questionnaire = db.Questionare
+                    .Where(q => q.flag == "1" && q.type.Trim() == type.Trim())
+                    .Select(q => new
+                    {
+                        QuestionareID = q.id,
+                        Type = q.type,
+                        Flag = q.flag,
+                        // Mapping names to match React State (q.Text and q.QuestionId)
+                        Questions = q.Questions.Select(ques => new
+                        {
+                            QuestionId = ques.QuestionID,
+                            Text = ques.QuestionText
+                        }).ToList()
+                    })
+                    .FirstOrDefault();
 
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            // Exception details check karne ke liye
-            return BadRequest("Server Error: " + ex.Message);
-        }
-    }
+                if (questionnaire == null)
+                    return Ok(new { Message = "No active questionnaire found", Questions = new List<object>() });
 
-    // 3. POST: Evaluation Submit karne ke liye
-    [HttpPost]
+                return Ok(questionnaire);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        // 3. POST: Submit Evaluation
+        [HttpPost]
         [Route("SubmitEvaluation")]
         public IHttpActionResult SubmitEvaluation(EvaluationSubmissionDto model)
         {
-            if (model == null || model.Answers == null)
-                return BadRequest("Invalid submission data.");
+            if (model == null || model.Answers == null || !model.Answers.Any())
+                return BadRequest("Data is incomplete.");
 
             try
             {
@@ -115,10 +112,13 @@ namespace EmpPerAppE.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest("Error saving evaluation: " + ex.Message);
+                // Detailed error handling
+                string innerMessage = ex.InnerException != null
+                    ? ex.InnerException.InnerException?.Message ?? ex.InnerException.Message
+                    : ex.Message;
+
+                return BadRequest("Database Error: " + innerMessage);
             }
         }
     }
-
-    
 }
