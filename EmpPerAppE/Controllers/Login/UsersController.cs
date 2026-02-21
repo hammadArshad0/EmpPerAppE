@@ -132,7 +132,8 @@ namespace EmpPerAppE.Controllers.Login
                     userId = userRecord.id,
                     name = fullName,
                     sessionName = currentSessionName,
-                    sessionId = currentSessionId
+                    sessionId = currentSessionId,
+
                 });
             }
             catch (Exception ex)
