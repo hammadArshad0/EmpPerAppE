@@ -31,18 +31,31 @@ namespace EmpPerAppE.Controllers.HOD
             {
                 using (var scope = new TransactionScope())
                 {
+                    // 1. Create Main KPI
                     KPI kpi = new KPI { name = dto.KPIName, KPI_Employeetype = dto.EmployeeTypeId };
                     db.KPI.Add(kpi);
-                    db.SaveChanges();
+                    db.SaveChanges(); // kpi.id generate ho gayi
 
                     decimal subFactor = subKpiTotalInput > 0 ? mainKpiTargetWeight / subKpiTotalInput : 0;
 
                     foreach (var subDto in dto.SubKPIs)
                     {
+                        // 2. Create SubKPI
                         var subObj = new SubKPI { KPIID = kpi.id, name = subDto.Name };
                         db.SubKPI.Add(subObj);
-                        db.SaveChanges();
+                        db.SaveChanges(); // subObj.id generate ho gayi
 
+                        // 3. IMPORTANT: Create Mapping in EmployeSessionKPI
+                        // Ye wahi entry hai jo aapki SQL query mein miss thi
+                        db.EmployeSessionKPI.Add(new EmployeSessionKPI
+                        {
+                            KPIID = kpi.id,
+                            SubKPIID = subObj.id,
+                            SessionID = dto.SessionId,
+                            EmployeetypeID = dto.EmployeeTypeId
+                        });
+
+                        // 4. Set Session Weight
                         decimal adjustedSubWeight = (decimal)subDto.Weight * subFactor;
                         db.SessionKPIWeight.Add(new SessionKPIWeight
                         {
@@ -54,22 +67,29 @@ namespace EmpPerAppE.Controllers.HOD
                     }
                     db.SaveChanges();
 
-                    // Local Rounding Correction
-                    var currentKpiWeights = db.SessionKPIWeight.Where(w => w.SessionID == dto.SessionId && w.KPIID == kpi.id).ToList();
+                    // 5. Local Rounding Correction
+                    var currentKpiWeights = db.SessionKPIWeight
+                        .Where(w => w.SessionID == dto.SessionId && w.KPIID == kpi.id).ToList();
+
                     int currentKpiSum = currentKpiWeights.Sum(w => w.Weight ?? 0);
+
                     if (currentKpiSum != (int)mainKpiTargetWeight && currentKpiWeights.Any())
                     {
                         currentKpiWeights.First().Weight += ((int)mainKpiTargetWeight - currentKpiSum);
                         db.SaveChanges();
                     }
 
+                    // 6. Global Adjustment (Baaki KPIs ke weights adjust karna)
                     AdjustGlobalWeights(dto.SessionId, dto.EmployeeTypeId, kpi.id, mainKpiTargetWeight);
 
                     scope.Complete();
-                    return Ok(new { Message = "KPI Saved and weights adjusted.", Status = "Success" });
+                    return Ok(new { Message = "KPI Saved, Mapping Created, and weights adjusted.", Status = "Success" });
                 }
             }
-            catch (Exception ex) { return InternalServerError(new Exception("Error: " + ex.Message)); }
+            catch (Exception ex)
+            {
+                return InternalServerError(new Exception("Error: " + ex.Message));
+            }
         }
 
         // 2. ADD SUB-KPI TO EXISTING KPI (Dynamic Adjustment)
@@ -81,26 +101,34 @@ namespace EmpPerAppE.Controllers.HOD
             {
                 using (var scope = new TransactionScope())
                 {
-                    var existingWeights = db.SessionKPIWeight
-                        .Where(w => w.SessionID == dto.SessionId && w.KPIID == dto.KpiId).ToList();
+                    var existingWeights = db.SessionKPIWeight.Where(w => w.SessionID == dto.SessionId && w.KPIID == dto.KpiId).ToList();
+                    if (!existingWeights.Any()) return BadRequest("KPI not found.");
 
-                    if (!existingWeights.Any()) return BadRequest("KPI not found in this session.");
-
+                    // Scaling logic
                     int mainKpiTotal = existingWeights.Sum(x => x.Weight ?? 0);
-                    if (dto.NewWeight >= mainKpiTotal) return BadRequest("New Sub-KPI weight is too high.");
-
-                    decimal remainingSpace = mainKpiTotal - dto.NewWeight;
-                    decimal factor = remainingSpace / mainKpiTotal;
+                    decimal factor = (decimal)(mainKpiTotal - dto.NewWeight) / mainKpiTotal;
 
                     foreach (var w in existingWeights)
                     {
                         w.Weight = (int)Math.Round((w.Weight ?? 0) * factor, MidpointRounding.AwayFromZero);
                     }
 
+                    // 1. Create SubKPI
                     SubKPI newSub = new SubKPI { KPIID = dto.KpiId, name = dto.Name };
                     db.SubKPI.Add(newSub);
                     db.SaveChanges();
 
+                    // 2. Create Mapping Entry - IMPORTANT
+                    var kpiRecord = db.KPI.Find(dto.KpiId);
+                    db.EmployeSessionKPI.Add(new EmployeSessionKPI
+                    {
+                        KPIID = dto.KpiId,
+                        SubKPIID = newSub.id,
+                        SessionID = dto.SessionId,
+                        EmployeetypeID = kpiRecord?.KPI_Employeetype
+                    });
+
+                    // 3. Add Weight
                     db.SessionKPIWeight.Add(new SessionKPIWeight
                     {
                         SessionID = dto.SessionId,
@@ -108,17 +136,10 @@ namespace EmpPerAppE.Controllers.HOD
                         SubKPIID = newSub.id,
                         Weight = dto.NewWeight
                     });
+
                     db.SaveChanges();
-
-                    int finalSum = db.SessionKPIWeight.Where(w => w.SessionID == dto.SessionId && w.KPIID == dto.KpiId).Sum(x => x.Weight ?? 0);
-                    if (finalSum != mainKpiTotal)
-                    {
-                        existingWeights.First().Weight += (mainKpiTotal - finalSum);
-                        db.SaveChanges();
-                    }
-
                     scope.Complete();
-                    return Ok("Sub-KPI added and existing weights scaled down.");
+                    return Ok("New Sub-KPI added with mapping.");
                 }
             }
             catch (Exception ex) { return InternalServerError(ex); }
@@ -139,11 +160,18 @@ namespace EmpPerAppE.Controllers.HOD
                     int kpiId = (int)weightRec.KPIID;
                     int kpiTotalWeight = db.SessionKPIWeight.Where(w => w.KPIID == kpiId && w.SessionID == sid).Sum(x => x.Weight ?? 0);
 
+                    // 1. Remove from Mapping Table - IMPORTANT
+                    var mapRec = db.EmployeSessionKPI.FirstOrDefault(m => m.SubKPIID == subid && m.SessionID == sid);
+                    if (mapRec != null) db.EmployeSessionKPI.Remove(mapRec);
+
+                    // 2. Remove Weight and SubKPI definition
                     db.SessionKPIWeight.Remove(weightRec);
                     var subDef = db.SubKPI.Find(subid);
                     if (subDef != null) db.SubKPI.Remove(subDef);
+
                     db.SaveChanges();
 
+                    // 3. Re-adjust remaining SubKPI weights within the same KPI
                     var remaining = db.SessionKPIWeight.Where(w => w.KPIID == kpiId && w.SessionID == sid).ToList();
                     if (remaining.Any())
                     {
@@ -156,17 +184,13 @@ namespace EmpPerAppE.Controllers.HOD
                                 o.Weight = (int)Math.Round((o.Weight ?? 0) * factor, MidpointRounding.AwayFromZero);
                             }
                             db.SaveChanges();
-
+                            // Final sum check
                             int finalSum = remaining.Sum(x => x.Weight ?? 0);
-                            if (finalSum != kpiTotalWeight)
-                            {
-                                remaining.First().Weight += (kpiTotalWeight - finalSum);
-                                db.SaveChanges();
-                            }
+                            if (finalSum != kpiTotalWeight) { remaining.First().Weight += (kpiTotalWeight - finalSum); db.SaveChanges(); }
                         }
                     }
                     scope.Complete();
-                    return Ok("Sub-KPI deleted and weights adjusted.");
+                    return Ok("Sub-KPI deleted and weights re-distributed.");
                 }
             }
             catch (Exception ex) { return InternalServerError(ex); }
@@ -186,15 +210,22 @@ namespace EmpPerAppE.Controllers.HOD
 
                     int empTypeId = kpi.KPI_Employeetype ?? 0;
 
+                    // 1. Remove from Mapping Table (EmployeSessionKPI) - IMPORTANT
+                    var mappings = db.EmployeSessionKPI.Where(m => m.KPIID == kpiid && m.SessionID == sid).ToList();
+                    foreach (var m in mappings) db.EmployeSessionKPI.Remove(m);
+
+                    // 2. Remove Weights
                     var weights = db.SessionKPIWeight.Where(w => w.KPIID == kpiid && w.SessionID == sid).ToList();
                     foreach (var w in weights) db.SessionKPIWeight.Remove(w);
 
+                    // 3. Remove SubKPIs and KPI
                     var subs = db.SubKPI.Where(s => s.KPIID == kpiid).ToList();
                     foreach (var s in subs) db.SubKPI.Remove(s);
 
                     db.KPI.Remove(kpi);
                     db.SaveChanges();
 
+                    // 4. Global Weight Adjustment (Scaling back to 100%)
                     var bakiWeights = db.SessionKPIWeight.Where(w => w.SessionID == sid &&
                                       db.KPI.Any(k => k.id == w.KPIID && k.KPI_Employeetype == empTypeId)).ToList();
 
@@ -219,7 +250,7 @@ namespace EmpPerAppE.Controllers.HOD
                         }
                     }
                     scope.Complete();
-                    return Ok("KPI Deleted and Global weights adjusted.");
+                    return Ok("KPI and all associated mappings deleted.");
                 }
             }
             catch (Exception ex) { return InternalServerError(ex); }

@@ -23,7 +23,6 @@ namespace EmpPerAppE.Controllers.student
             db.Configuration.LazyLoadingEnabled = false;
         }
 
-        // 1. GET: Enrollments fetch karein
         [HttpGet]
         [Route("GetStudentEnrollments/{studentId}")]
         public IHttpActionResult GetStudentEnrollments(string studentId)
@@ -59,10 +58,7 @@ namespace EmpPerAppE.Controllers.student
         [Route("SubmitConfidential")]
         public IHttpActionResult SubmitConfidential([FromBody] ConfidentialSubmissionDto model)
         {
-            // Check 1: Model null toh nahi?
             if (model == null) return BadRequest("Model is null. Check JSON format.");
-
-            // Check 2: Answers list empty toh nahi?
             if (model.Answers == null || !model.Answers.Any()) return BadRequest("Answers list is empty.");
 
             try
@@ -83,7 +79,6 @@ namespace EmpPerAppE.Controllers.student
             }
             catch (System.Data.Entity.Validation.DbEntityValidationException dbEx)
             {
-                // Database validation errors check karne ke liye
                 var errorMessages = dbEx.EntityValidationErrors
                         .SelectMany(x => x.ValidationErrors)
                         .Select(x => x.ErrorMessage);
@@ -92,18 +87,29 @@ namespace EmpPerAppE.Controllers.student
             }
             catch (Exception ex)
             {
-                // Inner Exception check karein (Foreign Key errors ke liye)
                 var innerMsg = ex.InnerException != null ? ex.InnerException.InnerException?.Message ?? ex.InnerException.Message : ex.Message;
                 return BadRequest("Database Error: " + innerMsg);
             }
         }
-        // 3. POST: Report Generate aur Email karein
+
         [HttpPost]
         [Route("GenerateAndEmailReport/{studentId}")]
         public IHttpActionResult GenerateAndEmailReport(string studentId)
         {
             try
             {
+                // Student name aur session fetch karo
+                var studentInfo = db.Enrollment
+                    .Where(e => e.studentID == studentId)
+                    .Select(e => new {
+                        StudentName = e.Student.name,
+                        SessionName = e.Session.name
+                    })
+                    .FirstOrDefault();
+
+                string studentName = studentInfo?.StudentName ?? "N/A";
+                string sessionName = studentInfo?.SessionName ?? "N/A";
+
                 var results = db.StudentEvaluation
                     .Where(se => se.Enrollment.studentID == studentId && se.Questions.Questionare.type == "C")
                     .Select(se => new {
@@ -122,17 +128,24 @@ namespace EmpPerAppE.Controllers.student
                     document.Open();
 
                     var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
-                    var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
+                    var labelFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10, BaseColor.BLACK);
                     var normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
+                    var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
 
-                    Paragraph title = new Paragraph("MANAGEMENT EVALUATION REPORT", titleFont);
+                    // Title
+                    Paragraph title = new Paragraph("CONFIDENTIAL EVALUATION REPORT", titleFont);
                     title.Alignment = Element.ALIGN_CENTER;
                     document.Add(title);
                     document.Add(new Paragraph("\n"));
-                    document.Add(new Paragraph($"Student ID: {studentId}"));
-                    document.Add(new Paragraph($"Date: {DateTime.Now:dd-MMM-yyyy}"));
+
+                    // Student Info
+                    document.Add(new Paragraph($"Student ID:   {studentId}", labelFont));
+                    document.Add(new Paragraph($"Student Name: {studentName}", labelFont));
+                    document.Add(new Paragraph($"Session:      {sessionName}", labelFont));
+                    document.Add(new Paragraph($"Date:         {DateTime.Now:dd-MMM-yyyy}", labelFont));
                     document.Add(new Paragraph("\n"));
 
+                    // Table
                     PdfPTable table = new PdfPTable(4);
                     table.WidthPercentage = 100;
                     table.SetWidths(new float[] { 20f, 20f, 50f, 10f });
@@ -161,7 +174,7 @@ namespace EmpPerAppE.Controllers.student
                     document.Close();
 
                     byte[] pdfBytes = ms.ToArray();
-                    SendEmail(pdfBytes, "hammadarshad481@gmail.com", studentId);
+                    SendEmail(pdfBytes, "hammadarshad481@gmail.com", studentId, studentName, sessionName);
                 }
 
                 return Ok(new { message = "Report sent to admin!" });
@@ -172,7 +185,7 @@ namespace EmpPerAppE.Controllers.student
             }
         }
 
-        private void SendEmail(byte[] pdfData, string recipientEmail, string sid)
+        private void SendEmail(byte[] pdfData, string recipientEmail, string sid, string studentName, string sessionName)
         {
             var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "FYP Admin");
             var toEmail = new MailAddress(recipientEmail);
@@ -190,15 +203,14 @@ namespace EmpPerAppE.Controllers.student
 
             using (var mail = new MailMessage(fromEmail, toEmail))
             {
-                mail.Subject = $"Confidential Report - {sid}";
-                mail.Body = $"Attached is the evaluation report for Student ID: {sid}.";
-                mail.Attachments.Add(new Attachment(new MemoryStream(pdfData), $"Report_{sid}.pdf"));
+                mail.Subject = $"Confidential Evaluation Report - {sid}";
+                mail.Body = $"Dear Admin,\n\nPlease find attached the confidential evaluation report.\n\nStudent ID:   {sid}\nStudent Name: {studentName}\nSession:      {sessionName}\nDate:         {DateTime.Now:dd-MMM-yyyy}\n\nRegards,\nFYP System";
+                mail.Attachments.Add(new Attachment(new MemoryStream(pdfData), $"ConfidentialReport_{sid}.pdf"));
                 smtp.Send(mail);
             }
         }
     }
 
-    // --- DTOs (Sirf ek baar namespace ke andar define karein) ---
     public class ConfidentialSubmissionDto
     {
         public int EnrollmentId { get; set; }
