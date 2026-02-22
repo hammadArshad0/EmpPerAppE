@@ -15,6 +15,7 @@ namespace EmpPerAppE.Controllers
 
         public StudentEvalutionController()
         {
+            // Inka false hona zaroori hai JSON serialization errors se bachne ke liye
             db.Configuration.ProxyCreationEnabled = false;
             db.Configuration.LazyLoadingEnabled = false;
         }
@@ -36,7 +37,6 @@ namespace EmpPerAppE.Controllers
                         TeacherName = e.Teacher.name,
                         TeacherId = e.teacherID,
                         SessionName = e.Session.name,
-                        // Dashboard par status dikhane ke liye
                         IsEvaluated = db.StudentEvaluation.Any(se => se.enrollmentID == e.id)
                     })
                     .ToList();
@@ -52,21 +52,26 @@ namespace EmpPerAppE.Controllers
             }
         }
 
-        // 2. GET: Active Questionnaire (Sync with React fetch)
+        // 2. GET: Active Questionnaire (FIXED WITH .INCLUDE)
         [HttpGet]
         [Route("GetActiveQuestionnaire/{type}")]
         public IHttpActionResult GetActiveQuestionnaire(string type)
         {
             try
             {
+                if (string.IsNullOrEmpty(type)) return BadRequest("Type is required");
+
+                // .Include(q => q.Questions) lazmi hai jab LazyLoading band ho
                 var questionnaire = db.Questionare
-                    .Where(q => q.flag == "1" && q.type.Trim() == type.Trim())
+                    .Include(q => q.Questions)
+                    .Where(q => q.flag == "1")
+                    .ToList() // Memory mein layein taake Case-Insensitive comparison exact ho
+                    .Where(q => q.type.Trim().Equals(type.Trim(), StringComparison.OrdinalIgnoreCase))
                     .Select(q => new
                     {
                         QuestionareID = q.id,
                         Type = q.type,
                         Flag = q.flag,
-                        // Mapping names to match React State (q.Text and q.QuestionId)
                         Questions = q.Questions.Select(ques => new
                         {
                             QuestionId = ques.QuestionID,
@@ -76,7 +81,7 @@ namespace EmpPerAppE.Controllers
                     .FirstOrDefault();
 
                 if (questionnaire == null)
-                    return Ok(new { Message = "No active questionnaire found", Questions = new List<object>() });
+                    return Ok(new { Message = "No active questionnaire found for type: " + type, Questions = new List<object>() });
 
                 return Ok(questionnaire);
             }
@@ -112,13 +117,18 @@ namespace EmpPerAppE.Controllers
             }
             catch (Exception ex)
             {
-                // Detailed error handling
                 string innerMessage = ex.InnerException != null
                     ? ex.InnerException.InnerException?.Message ?? ex.InnerException.Message
                     : ex.Message;
 
                 return BadRequest("Database Error: " + innerMessage);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { db.Dispose(); }
+            base.Dispose(disposing);
         }
     }
 }
