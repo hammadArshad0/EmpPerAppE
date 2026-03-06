@@ -27,17 +27,34 @@ namespace EmpPerAppE.Controllers.Teacher
         {
             try
             {
-                var evaluator = db.PeerEvaluator
-                    .FirstOrDefault(e => e.teacherID.Trim().ToLower() == userId.Trim().ToLower());
+                // 1. Pehle check karein ke kya ye Teacher table mein 'Permanent' mark hai?
+                var teacher = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == userId.Trim().ToLower());
 
-                if (evaluator == null)
-                    return Ok(new { isEvaluator = false });
+                // 2. Phir check karein ke kya ye PeerEvaluator table mein (session-based) add hai?
+                var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(e => e.teacherID.Trim().ToLower() == userId.Trim().ToLower());
 
-                return Ok(new
+                // Agar dono mein se kahin bhi mil jaye
+                if (teacher != null && teacher.isPermanentEvaluator == 1)
                 {
-                    isEvaluator = true,
-                    sessionID = evaluator.sessionID // Frontend need this to fetch teachers
-                });
+                    return Ok(new
+                    {
+                        isEvaluator = true,
+                        isPermanent = true,
+                        sessionID = sessionEvaluator?.sessionID // Permanent ke liye ye null ho sakta hai
+                    });
+                }
+
+                if (sessionEvaluator != null)
+                {
+                    return Ok(new
+                    {
+                        isEvaluator = true,
+                        isPermanent = false,
+                        sessionID = sessionEvaluator.sessionID
+                    });
+                }
+
+                return Ok(new { isEvaluator = false });
             }
             catch (Exception ex) { return InternalServerError(ex); }
         }
@@ -66,15 +83,42 @@ namespace EmpPerAppE.Controllers.Teacher
             catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        // 3. Get Colleagues (Filtered by Session via Enrollment)
         [HttpGet]
-        [Route("GetTeachersWithCourses/{sessionId}")]
-        public IHttpActionResult GetTeachersWithCourses(int sessionId)
+        [Route("GetTeachersWithCourses/{userId}")]
+        public IHttpActionResult GetTeachersWithCourses(string userId)
         {
             try
             {
-                var data = db.Enrollment
-                    .Where(e => e.sessionID == sessionId) // Only teachers in this session
+                // 1. Database se check karein ke login user 'Permanent Evaluator' hai ya nahi
+                var teacherProfile = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == userId.Trim().ToLower());
+
+                // Agar teacher record database mein nahi milta
+                if (teacherProfile == null) return BadRequest("Teacher record not found.");
+
+                IQueryable<Enrollment> enrollmentQuery = db.Enrollment;
+
+                // 2. Agar user Permanent nahi hai (isPermanentEvaluator == 0)
+                if (teacherProfile.isPermanentEvaluator != 1)
+                {
+                    // Check karein ke kya HOD ne ise kisi session ke liye 'PeerEvaluator' table mein add kiya hai?
+                    var sessionAuth = db.PeerEvaluator
+                        .FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == userId.Trim().ToLower());
+
+                    // Agar user na Permanent hai aur na hi kisi session ke liye authorize hai
+                    if (sessionAuth == null)
+                    {
+                        // Access deny karein kyunke user evaluator nahi hai
+                        return Ok(new List<object>());
+                    }
+
+                    // Agar session evaluator hai, to sirf us session ke teachers ka data filter karein
+                    enrollmentQuery = enrollmentQuery.Where(e => e.sessionID == sessionAuth.sessionID);
+                }
+
+                // 3. Agar user 'Permanent Evaluator' hai (isPermanentEvaluator == 1)
+                // To query filter nahi hogi aur tamam sessions ke teachers load honge.
+
+                var data = enrollmentQuery
                     .GroupBy(e => e.teacherID)
                     .Select(g => new
                     {
@@ -83,14 +127,19 @@ namespace EmpPerAppE.Controllers.Teacher
                             .Where(t => t.userID == g.Key)
                             .Select(t => t.name)
                             .FirstOrDefault(),
+                        // Frontend ke liye session ID bhi sath bhej rahe hain
+                        SessionID = g.FirstOrDefault().sessionID,
                         Courses = g.Select(x => x.courseCode).Distinct().ToList()
                     }).ToList();
 
                 return Ok(data);
             }
-            catch (Exception ex) { return InternalServerError(ex); }
+            catch (Exception ex)
+            {
+                // Kisi bhi error ki surat mein internal server error return karein
+                return InternalServerError(ex);
+            }
         }
-
         // 4. Submit Evaluation (Using PeerSubmissionModel DTO)
         [HttpPost]
         [Route("SubmitEvaluation")]

@@ -53,6 +53,10 @@
         <AssociationConnector Association="fypempModel.FK_Questions_Questionare" />
         <AssociationConnector Association="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" />
         <AssociationConnector Association="fypempModel.FK_StudentEvaluation_Questions" />
+        <EntityTypeShape EntityType="fypempModel.SocietyMember" Width="1.5" PointX="11.25" PointY="5" />
+        <AssociationConnector Association="fypempModel.FK__SocietyMe__sessi__7755B73D" />
+        <AssociationConnector Association="fypempModel.FK__SocietyMemb__SID__756D6ECB" />
+        <AssociationConnector Association="fypempModel.FK__SocietyMemb__TID__76619304" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

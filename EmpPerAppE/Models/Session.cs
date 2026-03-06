@@ -21,6 +21,7 @@ namespace EmpPerAppE.Models
             this.PeerEvaluator = new HashSet<PeerEvaluator>();
             this.SessionKPIWeight = new HashSet<SessionKPIWeight>();
             this.Student = new HashSet<Student>();
+            this.SocietyMember = new HashSet<SocietyMember>();
         }
     
         public int id { get; set; }
@@ -31,5 +32,6 @@ namespace EmpPerAppE.Models
         public virtual ICollection<PeerEvaluator> PeerEvaluator { get; set; }
         public virtual ICollection<SessionKPIWeight> SessionKPIWeight { get; set; }
         public virtual ICollection<Student> Student { get; set; }
+        public virtual ICollection<SocietyMember> SocietyMember { get; set; }
     }
 }

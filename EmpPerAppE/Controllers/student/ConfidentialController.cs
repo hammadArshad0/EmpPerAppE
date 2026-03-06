@@ -9,6 +9,7 @@ using System.Linq;
 using System.Net.Mail;
 using System.Net;
 using System.Web.Http;
+using Newtonsoft.Json;
 
 namespace EmpPerAppE.Controllers.student
 {
@@ -92,102 +93,152 @@ namespace EmpPerAppE.Controllers.student
             }
         }
 
+        //[HttpPost]
+        //[Route("GenerateAndEmailReport/{studentId}")]
+        //public IHttpActionResult GenerateAndEmailReport(string studentId)
+        //{
+        //    try
+        //    {
+        //        // Student name aur session fetch karo
+        //        var studentInfo = db.Enrollment
+        //            .Where(e => e.studentID == studentId)
+        //            .Select(e => new {
+        //                StudentName = e.Student.name,
+        //                SessionName = e.Session.name
+        //            })
+        //            .FirstOrDefault();
+
+        //        string studentName = studentInfo?.StudentName ?? "N/A";
+        //        string sessionName = studentInfo?.SessionName ?? "N/A";
+
+        //        var results = db.StudentEvaluation
+        //            .Where(se => se.Enrollment.studentID == studentId && se.Questions.Questionare.type == "C")
+        //            .Select(se => new {
+        //                Teacher = se.Enrollment.Teacher.name,
+        //                Course = se.Enrollment.Course.title,
+        //                Question = se.Questions.QuestionText,
+        //                Score = se.score
+        //            }).ToList();
+
+        //        if (!results.Any()) return BadRequest("Koi data nahi mila.");
+
+        //        using (MemoryStream ms = new MemoryStream())
+        //        {
+        //            Document document = new Document(PageSize.A4, 25, 25, 30, 30);
+        //            PdfWriter writer = PdfWriter.GetInstance(document, ms);
+        //            document.Open();
+
+        //            var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
+        //            var labelFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10, BaseColor.BLACK);
+        //            var normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
+        //            var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
+
+        //            // Title
+        //            Paragraph title = new Paragraph("CONFIDENTIAL EVALUATION REPORT", titleFont);
+        //            title.Alignment = Element.ALIGN_CENTER;
+        //            document.Add(title);
+        //            document.Add(new Paragraph("\n"));
+
+        //            // Student Info
+        //            document.Add(new Paragraph($"Student ID:   {studentId}", labelFont));
+        //            document.Add(new Paragraph($"Student Name: {studentName}", labelFont));
+        //            document.Add(new Paragraph($"Session:      {sessionName}", labelFont));
+        //            document.Add(new Paragraph($"Date:         {DateTime.Now:dd-MMM-yyyy}", labelFont));
+        //            document.Add(new Paragraph("\n"));
+
+        //            // Table
+        //            PdfPTable table = new PdfPTable(4);
+        //            table.WidthPercentage = 100;
+        //            table.SetWidths(new float[] { 20f, 20f, 50f, 10f });
+
+        //            string[] headers = { "Teacher", "Course", "Question", "Score" };
+        //            foreach (var h in headers)
+        //            {
+        //                PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
+        //                cell.BackgroundColor = new BaseColor(40, 40, 40);
+        //                cell.HorizontalAlignment = Element.ALIGN_CENTER;
+        //                cell.Padding = 5;
+        //                table.AddCell(cell);
+        //            }
+
+        //            foreach (var item in results)
+        //            {
+        //                table.AddCell(new Phrase(item.Teacher, normalFont));
+        //                table.AddCell(new Phrase(item.Course, normalFont));
+        //                table.AddCell(new Phrase(item.Question, normalFont));
+        //                PdfPCell sCell = new PdfPCell(new Phrase(item.Score.ToString(), normalFont));
+        //                sCell.HorizontalAlignment = Element.ALIGN_CENTER;
+        //                table.AddCell(sCell);
+        //            }
+
+        //            document.Add(table);
+        //            document.Close();
+
+        //            byte[] pdfBytes = ms.ToArray();
+        //            SendEmail(pdfBytes, "hammadarshad481@gmail.com", studentId, studentName, sessionName);
+        //        }
+
+        //        return Ok(new { message = "Report sent to admin!" });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return InternalServerError(new Exception("System Error: " + ex.Message));
+        //    }
+        //}
+
+
         [HttpPost]
         [Route("GenerateAndEmailReport/{studentId}")]
-        public IHttpActionResult GenerateAndEmailReport(string studentId)
+        public IHttpActionResult GenerateAndEmailReport(string studentId, [FromBody] EvaluationPayload payload)
         {
             try
             {
-                // Student name aur session fetch karo
-                var studentInfo = db.Enrollment
-                    .Where(e => e.studentID == studentId)
-                    .Select(e => new {
-                        StudentName = e.Student.name,
-                        SessionName = e.Session.name
-                    })
-                    .FirstOrDefault();
+                if (payload == null || payload.Evaluations == null || !payload.Evaluations.Any())
+                    return BadRequest("no confidentail Evalution.");
 
-                string studentName = studentInfo?.StudentName ?? "N/A";
-                string sessionName = studentInfo?.SessionName ?? "N/A";
+                // Student info pehli record se lo
+                var first = payload.Evaluations.First();
 
-                var results = db.StudentEvaluation
-                    .Where(se => se.Enrollment.studentID == studentId && se.Questions.Questionare.type == "C")
-                    .Select(se => new {
-                        Teacher = se.Enrollment.Teacher.name,
-                        Course = se.Enrollment.Course.title,
-                        Question = se.Questions.QuestionText,
-                        Score = se.score
+                // ── Teacher ke basis par group karo ──────────────────────────────
+                var groupedByTeacher = payload.Evaluations
+                    .GroupBy(e => new { e.TeacherId, e.TeacherName, e.CourseCode, e.CourseTitle })
+                    .Select(g => new
+                    {
+                        Teacher = new { ID = g.Key.TeacherId, Name = g.Key.TeacherName },
+                        Course = new { Code = g.Key.CourseCode, Title = g.Key.CourseTitle },
+                        Evaluations = g.Select(e => new
+                        {
+                            QuestionID = e.QuestionId,
+                            Question = e.QuestionText,
+                            Score = e.Score
+                        }).ToList()
                     }).ToList();
 
-                if (!results.Any()) return BadRequest("Koi data nahi mila.");
-
-                using (MemoryStream ms = new MemoryStream())
+                // ── Final structured report ───────────────────────────────────────
+                var finalReport = new
                 {
-                    Document document = new Document(PageSize.A4, 25, 25, 30, 30);
-                    PdfWriter writer = PdfWriter.GetInstance(document, ms);
-                    document.Open();
+                    ReportTitle = "CONFIDENTIAL EVALUATION REPORT",
+                    Date = DateTime.Now.ToString("dd-MMM-yyyy"),
+                    Student = new { ID = first.StudentId, Name = first.StudentName },
+                    Session = first.SessionName,
+                    TeacherEvaluations = groupedByTeacher   // grouped section
+                };
 
-                    var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
-                    var labelFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10, BaseColor.BLACK);
-                    var normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
-                    var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
+                string jsonReport = JsonConvert.SerializeObject(finalReport, Formatting.Indented);
+                SendJsonEmail(jsonReport, "hammadarshad481@gmail.com", studentId);
 
-                    // Title
-                    Paragraph title = new Paragraph("CONFIDENTIAL EVALUATION REPORT", titleFont);
-                    title.Alignment = Element.ALIGN_CENTER;
-                    document.Add(title);
-                    document.Add(new Paragraph("\n"));
-
-                    // Student Info
-                    document.Add(new Paragraph($"Student ID:   {studentId}", labelFont));
-                    document.Add(new Paragraph($"Student Name: {studentName}", labelFont));
-                    document.Add(new Paragraph($"Session:      {sessionName}", labelFont));
-                    document.Add(new Paragraph($"Date:         {DateTime.Now:dd-MMM-yyyy}", labelFont));
-                    document.Add(new Paragraph("\n"));
-
-                    // Table
-                    PdfPTable table = new PdfPTable(4);
-                    table.WidthPercentage = 100;
-                    table.SetWidths(new float[] { 20f, 20f, 50f, 10f });
-
-                    string[] headers = { "Teacher", "Course", "Question", "Score" };
-                    foreach (var h in headers)
-                    {
-                        PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
-                        cell.BackgroundColor = new BaseColor(40, 40, 40);
-                        cell.HorizontalAlignment = Element.ALIGN_CENTER;
-                        cell.Padding = 5;
-                        table.AddCell(cell);
-                    }
-
-                    foreach (var item in results)
-                    {
-                        table.AddCell(new Phrase(item.Teacher, normalFont));
-                        table.AddCell(new Phrase(item.Course, normalFont));
-                        table.AddCell(new Phrase(item.Question, normalFont));
-                        PdfPCell sCell = new PdfPCell(new Phrase(item.Score.ToString(), normalFont));
-                        sCell.HorizontalAlignment = Element.ALIGN_CENTER;
-                        table.AddCell(sCell);
-                    }
-
-                    document.Add(table);
-                    document.Close();
-
-                    byte[] pdfBytes = ms.ToArray();
-                    SendEmail(pdfBytes, "hammadarshad481@gmail.com", studentId, studentName, sessionName);
-                }
-
-                return Ok(new { message = "Report sent to admin!" });
+                return Ok(new { message = "Grouped JSON Report sent to admin!" });
             }
             catch (Exception ex)
             {
                 return InternalServerError(new Exception("System Error: " + ex.Message));
             }
         }
-
-        private void SendEmail(byte[] pdfData, string recipientEmail, string sid, string studentName, string sessionName)
+        // 1. Iska naam SendJsonEmail hona chahiye
+        // 2. Iska pehla parameter string hona chahiye (byte[] nahi)
+        private void SendJsonEmail(string jsonContent, string recipientEmail, string sid)
         {
-            var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "FYP Admin");
+            var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "Employee Performance Confidential  report");
             var toEmail = new MailAddress(recipientEmail);
             string appPassword = "umxziyrjnmpparos";
 
@@ -203,9 +254,14 @@ namespace EmpPerAppE.Controllers.student
 
             using (var mail = new MailMessage(fromEmail, toEmail))
             {
-                mail.Subject = $"Confidential Evaluation Report - {sid}";
-                mail.Body = $"Dear Admin,\n\nPlease find attached the confidential evaluation report.\n\nStudent ID:   {sid}\nStudent Name: {studentName}\nSession:      {sessionName}\nDate:         {DateTime.Now:dd-MMM-yyyy}\n\nRegards,\nFYP System";
-                mail.Attachments.Add(new Attachment(new MemoryStream(pdfData), $"ConfidentialReport_{sid}.pdf"));
+                mail.Subject = $"Confidential JSON Evaluation Report - {sid}";
+
+                // Body mein JSON text ja raha hai
+                mail.Body = $" \n\nPlease view  the confidential evaluation report in JSON format below:\n\n{jsonContent}\n\nRegards,\nFYP System";
+
+                mail.IsBodyHtml = false; // Plain text JSON ke liye behtar hai
+
+                // Attachments ki zaroorat nahi hai kyunke hum body mein bhej rahe hain
                 smtp.Send(mail);
             }
         }
@@ -220,6 +276,26 @@ namespace EmpPerAppE.Controllers.student
     public class ConfidentialAnswerDto
     {
         public int QuestionId { get; set; }
+        public int Score { get; set; }
+    }
+
+    //email dto
+    public class EvaluationPayload
+    {
+        public List<EvaluationItem> Evaluations { get; set; }
+    }
+
+    public class EvaluationItem
+    {
+        public string StudentId { get; set; }
+        public string StudentName { get; set; }
+        public string TeacherId { get; set; }
+        public string TeacherName { get; set; }
+        public string CourseCode { get; set; }
+        public string CourseTitle { get; set; }
+        public string SessionName { get; set; }
+        public int QuestionId { get; set; }
+        public string QuestionText { get; set; }
         public int Score { get; set; }
     }
 }

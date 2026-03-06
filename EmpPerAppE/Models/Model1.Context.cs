@@ -43,5 +43,6 @@ namespace EmpPerAppE.Models
         public DbSet<Teacher> Teacher { get; set; }
         public DbSet<Users> Users { get; set; }
         public DbSet<Questions> Questions { get; set; }
+        public DbSet<SocietyMember> SocietyMember { get; set; }
     }
 }
