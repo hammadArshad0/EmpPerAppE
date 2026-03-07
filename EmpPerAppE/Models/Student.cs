@@ -17,6 +17,7 @@ namespace EmpPerAppE.Models
         public Student()
         {
             this.Enrollment = new HashSet<Enrollment>();
+            this.SocietyMember = new HashSet<SocietyMember>();
         }
     
         public string userID { get; set; }
@@ -26,5 +27,6 @@ namespace EmpPerAppE.Models
         public virtual ICollection<Enrollment> Enrollment { get; set; }
         public virtual Session Session { get; set; }
         public virtual Users Users { get; set; }
+        public virtual ICollection<SocietyMember> SocietyMember { get; set; }
     }
 }

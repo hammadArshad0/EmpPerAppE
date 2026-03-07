@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Http;
+using System.Data.Entity; // Include for .Include()
 using EmpPerAppE.Models.DTO.peerEvalution;
 
 namespace EmpPerAppE.Controllers.HOD
@@ -12,12 +13,16 @@ namespace EmpPerAppE.Controllers.HOD
     {
         fypempEntities db = new fypempEntities();
 
-        // 1. Get All Teachers for Selection
+        // 1. Selection List: Sirf wo teachers jo permanent NAHI hain
         [HttpGet]
         [Route("Teachers")]
         public IHttpActionResult GetTeachers()
         {
-            var teachers = db.Teacher.Select(t => new { t.userID, t.name, t.department }).ToList();
+            // Permanent teachers ko list se nikal diya kyunke wo automatically assigned hain
+            var teachers = db.Teacher
+                .Where(t => t.isPermanentEvaluator != 1)
+                .Select(t => new { t.userID, t.name, t.department })
+                .ToList();
             return Ok(teachers);
         }
 
@@ -30,26 +35,23 @@ namespace EmpPerAppE.Controllers.HOD
             return Ok(sessions);
         }
 
-        // 3. Add Evaluators to a Specific Session
+        // 3. Add Evaluators (Manual)
         [HttpPost]
         [Route("Add")]
         public IHttpActionResult AddPeerEvaluators(AddPeerEvaluatorDto model)
         {
             if (model == null || model.TeacherIds == null || model.SessionId <= 0)
-                return BadRequest("Invalid data: Please select session and teachers.");
+                return BadRequest("Invalid data.");
 
             try
             {
                 foreach (var tid in model.TeacherIds)
                 {
                     string tidStr = tid.ToString();
-
-                    // Check if already exists in this session to avoid duplicates
                     bool exists = db.PeerEvaluator.Any(pe => pe.teacherID == tidStr && pe.sessionID == model.SessionId);
 
                     if (!exists)
                     {
-                        // Use full model path to avoid 'Namespace but used like Type' error
                         db.PeerEvaluator.Add(new EmpPerAppE.Models.PeerEvaluator
                         {
                             teacherID = tidStr,
@@ -58,46 +60,84 @@ namespace EmpPerAppE.Controllers.HOD
                     }
                 }
                 db.SaveChanges();
-                return Ok(new { message = "Evaluators assigned successfully for the selected session." });
+                return Ok(new { message = "Evaluators assigned successfully." });
             }
-            catch (Exception ex)
-            {
-                return InternalServerError(ex);
-            }
+            catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        // 4. Get Current Evaluators for a Session (Listing & Delete purpose)
+        // 4. Get Current Evaluators for a Session 
+        // Logic: Ismein session-specific teachers + saare Permanent teachers nazar aayenge
         [HttpGet]
         [Route("BySession/{sessionId}")]
         public IHttpActionResult GetPeerEvaluatorsBySession(int sessionId)
         {
-            var evaluators = (from pe in db.PeerEvaluator
-                              join t in db.Teacher on pe.teacherID equals t.userID
-                              where pe.sessionID == sessionId
-                              select new
-                              {
-                                  assignmentId = pe.id, // Primary Key of PeerEvaluator table
-                                  t.userID,
-                                  t.name,
-                                  t.department
-                              }).ToList();
+            // A. Get Manual Evaluators from PeerEvaluator table for this session
+            var manualEvaluators = (from pe in db.PeerEvaluator
+                                    join t in db.Teacher on pe.teacherID equals t.userID
+                                    where pe.sessionID == sessionId
+                                    select new
+                                    {
+                                        assignmentId = pe.id,
+                                        t.userID,
+                                        t.name,
+                                        t.department,
+                                        isPermanent = t.isPermanentEvaluator == 1
+                                    }).ToList();
 
-            return Ok(evaluators);
+            // B. Get All Permanent Teachers (Kyunke wo har session mein hote hain)
+            var permanentTeachers = db.Teacher
+                .Where(t => t.isPermanentEvaluator == 1)
+                .Select(t => new
+                {
+                    assignmentId = 0, // 0 because they are not coming from PeerEvaluator table
+                    t.userID,
+                    t.name,
+                    t.department,
+                    isPermanent = true
+                }).ToList();
+
+            // C. Combine and remove duplicates (if any permanent was manually added)
+            var finalList = permanentTeachers
+                .Concat(manualEvaluators.Where(m => !m.isPermanent))
+                .OrderByDescending(x => x.isPermanent)
+                .ThenBy(x => x.name)
+                .ToList();
+
+            return Ok(finalList);
         }
 
-        // 5. Delete One by One
+        // 5. Delete (With Protection)
         [HttpDelete]
         [Route("delete/{id}")]
         public IHttpActionResult Delete(int id)
         {
-            var pe = db.PeerEvaluator.Find(id);
+            // Agar assignmentId 0 hai (Permanent), toh delete block karein
+            if (id == 0) return BadRequest("Permanent evaluators cannot be deleted.");
+
+            var pe = db.PeerEvaluator.Include(p => p.Teacher).FirstOrDefault(x => x.id == id);
             if (pe == null) return NotFound();
+
+            // Double check if teacher is permanent
+            if (pe.Teacher != null && pe.Teacher.isPermanentEvaluator == 1)
+            {
+                return BadRequest("Action Denied: This is a permanent evaluator.");
+            }
 
             db.PeerEvaluator.Remove(pe);
             db.SaveChanges();
-            return Ok(new { message = "Evaluator removed from this session." });
+            return Ok(new { message = "Evaluator removed successfully." });
+        }
+
+        // 6. Permanent Teachers for Card View
+        [HttpGet]
+        [Route("PermanentTeachers")]
+        public IHttpActionResult GetPermanentTeachers()
+        {
+            var permanentOnes = db.Teacher
+                .Where(t => t.isPermanentEvaluator == 1)
+                .Select(t => new { t.userID, t.name, t.department, Role = "Permanent Evaluator" })
+                .ToList();
+            return Ok(permanentOnes);
         }
     }
-
-
 }
