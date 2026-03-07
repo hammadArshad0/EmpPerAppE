@@ -194,12 +194,23 @@ namespace EmpPerAppE.Controllers.student
             try
             {
                 if (payload == null || payload.Evaluations == null || !payload.Evaluations.Any())
-                    return BadRequest("no confidentail Evalution.");
+                    return BadRequest("No confidential evaluation found.");
+
+                // ── 1. Database se Active Email uthayein ──────────────────────────────
+                // 'Emails' ya 'Email' (jo bhi aapke EDMX mein table ka naam hai)
+                var activeRecipient = db.Email.FirstOrDefault(x => x.isActive == true);
+
+                if (activeRecipient == null || string.IsNullOrEmpty(activeRecipient.mail))
+                {
+                    return BadRequest("No active recipient email found in settings. Please contact Director.");
+                }
+
+                string targetEmail = activeRecipient.mail;
 
                 // Student info pehli record se lo
                 var first = payload.Evaluations.First();
 
-                // ── Teacher ke basis par group karo ──────────────────────────────
+                // ── 2. Teacher ke basis par group karo ──────────────────────────────
                 var groupedByTeacher = payload.Evaluations
                     .GroupBy(e => new { e.TeacherId, e.TeacherName, e.CourseCode, e.CourseTitle })
                     .Select(g => new
@@ -214,20 +225,22 @@ namespace EmpPerAppE.Controllers.student
                         }).ToList()
                     }).ToList();
 
-                // ── Final structured report ───────────────────────────────────────
+                // ── 3. Final structured report ───────────────────────────────────────
                 var finalReport = new
                 {
                     ReportTitle = "CONFIDENTIAL EVALUATION REPORT",
                     Date = DateTime.Now.ToString("dd-MMM-yyyy"),
                     Student = new { ID = first.StudentId, Name = first.StudentName },
                     Session = first.SessionName,
-                    TeacherEvaluations = groupedByTeacher   // grouped section
+                    TeacherEvaluations = groupedByTeacher
                 };
 
                 string jsonReport = JsonConvert.SerializeObject(finalReport, Formatting.Indented);
-                SendJsonEmail(jsonReport, "hammadarshad481@gmail.com", studentId);
 
-                return Ok(new { message = "Grouped JSON Report sent to admin!" });
+                // ── 4. Target Email ab database se aa rahi hai ────────────────────────
+                SendJsonEmail(jsonReport, targetEmail, studentId);
+
+                return Ok(new { message = $"Grouped JSON Report sent to {targetEmail}!" });
             }
             catch (Exception ex)
             {

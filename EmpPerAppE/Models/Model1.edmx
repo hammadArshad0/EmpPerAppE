@@ -26,6 +26,14 @@
           <Property Name="code" Type="varchar" MaxLength="20" Nullable="false" />
           <Property Name="title" Type="varchar" MaxLength="50" />
         </EntityType>
+        <EntityType Name="Email">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="mail" Type="varchar" MaxLength="100" />
+          <Property Name="isActive" Type="bit" />
+        </EntityType>
         <EntityType Name="EmployeeType">
           <Key>
             <PropertyRef Name="id" />
@@ -552,6 +560,7 @@
         <EntityContainer Name="fypempModelStoreContainer">
           <EntitySet Name="ClassheldReport" EntityType="Self.ClassheldReport" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Course" EntityType="Self.Course" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="Email" EntityType="Self.Email" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="EmployeeType" EntityType="Self.EmployeeType" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="EmployeSessionKPI" EntityType="Self.EmployeSessionKPI" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Enrollment" EntityType="Self.Enrollment" Schema="dbo" store:Type="Tables" />
@@ -1376,6 +1385,7 @@
             <End Role="Teacher" EntitySet="Teacher" />
             <End Role="SocietyMember" EntitySet="SocietyMember" />
           </AssociationSet>
+          <EntitySet Name="Email" EntityType="fypempModel.Email" />
         </EntityContainer>
         <Association Name="FK__KPI__KPI_Employe__14270015">
           <End Type="fypempModel.EmployeeType" Role="EmployeeType" Multiplicity="0..1" />
@@ -1485,6 +1495,14 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <EntityType Name="Email">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="mail" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
+          <Property Name="isActive" Type="Boolean" />
+        </EntityType>
       </Schema>
     </edmx:ConceptualModels>
     <!-- C-S mapping content -->
@@ -1678,6 +1696,15 @@
                 <ScalarProperty Name="sessionID" ColumnName="sessionID" />
                 <ScalarProperty Name="TID" ColumnName="TID" />
                 <ScalarProperty Name="SID" ColumnName="SID" />
+                <ScalarProperty Name="id" ColumnName="id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="Email">
+            <EntityTypeMapping TypeName="fypempModel.Email">
+              <MappingFragment StoreEntitySet="Email">
+                <ScalarProperty Name="isActive" ColumnName="isActive" />
+                <ScalarProperty Name="mail" ColumnName="mail" />
                 <ScalarProperty Name="id" ColumnName="id" />
               </MappingFragment>
             </EntityTypeMapping>

@@ -122,5 +122,54 @@ namespace EmpPerAppE.Controllers
                 return InternalServerError(ex);
             }
         }
+
+            // --- SIMPLE UPDATE: Sirf ID aur query strings/params use karein ---
+            [HttpPut]
+            [Route("update")]
+            public IHttpActionResult UpdateTeacher(string id, string name, string dept)
+            {
+                try
+                {
+                    var teacher = db.Teacher.Find(id);
+                    if (teacher == null) return NotFound();
+
+                    // Simple assignments
+                    teacher.name = name;
+                    teacher.department = dept;
+
+                    db.SaveChanges();
+                    return Ok("Teacher updated successfully.");
+                }
+                catch (Exception ex)
+                {
+                    return InternalServerError(ex);
+                }
+            }
+
+            // --- SIMPLE DELETE: Sirf ID pass karein ---
+            [HttpDelete]
+            [Route("delete")]
+            public IHttpActionResult DeleteTeacher(string id)
+            {
+                try
+                {
+                    var teacher = db.Teacher.Find(id);
+                    if (teacher == null) return NotFound();
+
+                    // 1. Pehle Teacher table se delete karein
+                    db.Teacher.Remove(teacher);
+
+                    // 2. Phir Users table se uska login delete karein
+                    var userAcc = db.Users.Find(id);
+                    if (userAcc != null) db.Users.Remove(userAcc);
+
+                    db.SaveChanges();
+                    return Ok("Teacher deleted successfully.");
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest("Delete failed. ID might be linked elsewhere.");
+                }
+            }
+        }
     }
-}

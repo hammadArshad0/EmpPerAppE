@@ -57,6 +57,7 @@
         <AssociationConnector Association="fypempModel.FK__SocietyMe__sessi__7755B73D" />
         <AssociationConnector Association="fypempModel.FK__SocietyMemb__SID__756D6ECB" />
         <AssociationConnector Association="fypempModel.FK__SocietyMemb__TID__76619304" />
+        <EntityTypeShape EntityType="fypempModel.Email" Width="1.5" PointX="11.375" PointY="0.75" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>
