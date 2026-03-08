@@ -19,71 +19,95 @@ namespace EmpPerAppE.Controllers.performance
                 var currentSession = db.Session.FirstOrDefault(s => s.id == sessionId);
                 if (currentSession == null) return BadRequest("Invalid Session ID.");
 
-                // 1. Get Session Weights
-                var dynamicWeights = db.SessionKPIWeight
-                    .Where(w => w.SessionID == sessionId)
-                    .ToList()
-                    .GroupBy(w => new { w.KPIID, KPIName = db.KPI.Where(k => k.id == w.KPIID).Select(k => k.name).FirstOrDefault() })
-                    .Select(kpiGroup => new {
-                        KPIName = kpiGroup.Key.KPIName,
-                        TotalKPIWeight = (double)kpiGroup.Sum(x => x.Weight),
-                        SubKPIData = kpiGroup.Select(sk => new {
-                            SubKPIName = db.SubKPI.Where(s => s.id == sk.SubKPIID).Select(s => s.name).FirstOrDefault(),
-                            Weight = (double)sk.Weight
-                        }).ToList()
+                // 1. Fetch Active KPIs for this Session from EmployeSessionKPI table
+                // Isse humein pata chalay ga ke actually is session mein kya kya evaluate hona hai
+                var activeKPIs = db.EmployeSessionKPI
+                    .Where(esk => esk.SessionID == sessionId)
+                    .Select(esk => new {
+                        esk.id,
+                        esk.KPIID,
+                        esk.SubKPIID,
+                        KPIName = db.KPI.Where(k => k.id == esk.KPIID).Select(k => k.name).FirstOrDefault(),
+                        SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID).Select(sk => sk.name).FirstOrDefault()
                     }).ToList();
 
-                // 2. Fetch Averages (SYNCED DATA SE UTHANA HAI)
+                if (!activeKPIs.Any()) return Ok(new { Message = "No KPIs configured for this session." });
+
+                // 2. Fetch Averages (Student, Peer, and Confidential)
                 var studentData = db.StudentEvaluation.Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId);
                 double studentAvg = studentData.Any() ? studentData.Average(se => (double)se.score) : 0;
 
                 var peerData = db.PeerEvaluation.Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId);
                 double peerAvg = peerData.Any() ? peerData.Average(pe => (double)pe.score) : 0;
 
-                // Yahan se Confidential data KPIScore se aaye ga
-                var confData = db.KPIScore.Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId);
-                double confAvg = confData.Any() ? confData.Average(ks => (double)ks.score) : 0;
+                // Yahan Confidential data direct KPIScore se aa raha hai jo EmployeSessionKPI se linked hai
+                var confScores = db.KPIScore.Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId).ToList();
 
-                // 3. Process Data for Frontend
+                // 3. Process Final Breakdown
+                var groupedKPIs = activeKPIs.GroupBy(k => new { k.KPIID, k.KPIName });
                 var finalBreakdown = new List<object>();
                 double totalAchieved = 0;
-                double totalPossibleWeight = 0;
+                double totalWeight = 0;
 
-                foreach (var kpi in dynamicWeights)
+                foreach (var kpiGroup in groupedKPIs)
                 {
-                    var processedSubKPIs = kpi.SubKPIData.Select(sk => {
-                        string subName = (sk.SubKPIName ?? "").ToLower();
-                        // Match logic with your Sync method
-                        double multiplier = subName.Contains("student") ? studentAvg :
-                                           (subName.Contains("peer") ? peerAvg : confAvg);
+                    var subDetails = new List<object>();
+                    double kpiGroupAchieved = 0;
+                    double kpiGroupWeight = 0;
 
-                        double achieved = Math.Round((multiplier / 4.0) * sk.Weight, 2);
-                        return new
+                    foreach (var item in kpiGroup)
+                    {
+                        // Weight table se weight uthana
+                        var weightEntry = db.SessionKPIWeight.FirstOrDefault(w =>
+                            w.SessionID == sessionId && w.KPIID == item.KPIID && w.SubKPIID == item.SubKPIID);
+
+                        double weight = weightEntry?.Weight ?? 0;
+                        string subNameLower = (item.SubKPIName ?? "").ToLower();
+                        double multiplier = 0;
+
+                        // Logic to select average based on SubKPI name or type
+                        if (subNameLower.Contains("student"))
+                            multiplier = studentAvg;
+                        else if (subNameLower.Contains("peer"))
+                            multiplier = peerAvg;
+                        else
                         {
-                            SubName = sk.SubKPIName,
-                            SubMax = sk.Weight,
-                            SubAchieved = achieved
-                        };
-                    }).ToList();
+                            // Agar Student/Peer nahi hai toh KPIScore table se specific subKPI ka score uthayein
+                            var specificConfScore = confScores.Where(cs => cs.empKPIID == item.id).Average(cs => (double?)cs.score);
+                            multiplier = specificConfScore ?? 0;
+                        }
 
-                    double kpiAchieved = processedSubKPIs.Sum(x => x.SubAchieved);
-                    totalAchieved += kpiAchieved;
-                    totalPossibleWeight += kpi.TotalKPIWeight;
+                        // Calculation: (Obtained / MaxScale) * Weightage
+                        double achieved = Math.Round((multiplier / 4.0) * weight, 2);
+
+                        subDetails.Add(new
+                        {
+                            SubName = item.SubKPIName,
+                            SubMax = weight,
+                            SubAchieved = achieved
+                        });
+
+                        kpiGroupAchieved += achieved;
+                        kpiGroupWeight += weight;
+                    }
 
                     finalBreakdown.Add(new
                     {
-                        KPIName = kpi.KPIName,
-                        KPIWeight = kpi.TotalKPIWeight,
-                        KPIAchieved = Math.Round(kpiAchieved, 2),
-                        SubDetails = processedSubKPIs
+                        KPIName = kpiGroup.Key.KPIName,
+                        KPIWeight = kpiGroupWeight,
+                        KPIAchieved = Math.Round(kpiGroupAchieved, 2),
+                        SubDetails = subDetails
                     });
+
+                    totalAchieved += kpiGroupAchieved;
+                    totalWeight += kpiGroupWeight;
                 }
 
                 return Ok(new
                 {
                     Status = "Success",
                     SessionName = currentSession.name,
-                    OverallPercentage = totalPossibleWeight > 0 ? Math.Round((totalAchieved / totalPossibleWeight) * 100, 2) : 0,
+                    OverallPercentage = totalWeight > 0 ? Math.Round((totalAchieved / totalWeight) * 100, 2) : 0,
                     Breakdown = finalBreakdown
                 });
             }
@@ -92,59 +116,58 @@ namespace EmpPerAppE.Controllers.performance
 
 
 
+        //[HttpPost]
+        //[Route("SyncTeacherPerformance/{teacherId}/{sessionId}")]
+        //public IHttpActionResult SyncTeacherPerformance(string teacherId, int sessionId)
+        //{
+        //    try
+        //    {
+        //        // 1. Calculate Averages (Nullable to avoid errors)
+        //        double studentAvg = db.StudentEvaluation
+        //            .Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId)
+        //            .Select(se => (double?)se.score).Average() ?? 0;
 
-        [HttpPost]
-        [Route("SyncTeacherPerformance/{teacherId}/{sessionId}")]
-        public IHttpActionResult SyncTeacherPerformance(string teacherId, int sessionId)
-        {
-            try
-            {
-                // 1. Calculate Averages (Nullable to avoid errors)
-                double studentAvg = db.StudentEvaluation
-                    .Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId)
-                    .Select(se => (double?)se.score).Average() ?? 0;
+        //        double peerAvg = db.PeerEvaluation
+        //            .Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId)
+        //            .Select(pe => (double?)pe.score).Average() ?? 0;
 
-                double peerAvg = db.PeerEvaluation
-                    .Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId)
-                    .Select(pe => (double?)pe.score).Average() ?? 0;
+        //        // 2. Fetch all KPI Mappings
+        //        var sessionKPIs = db.EmployeSessionKPI.Where(esk => esk.SessionID == sessionId).ToList();
 
-                // 2. Fetch all KPI Mappings
-                var sessionKPIs = db.EmployeSessionKPI.Where(esk => esk.SessionID == sessionId).ToList();
+        //        foreach (var mapping in sessionKPIs)
+        //        {
+        //            var kpiInfo = db.KPI.FirstOrDefault(k => k.id == mapping.KPIID);
+        //            if (kpiInfo == null) continue;
 
-                foreach (var mapping in sessionKPIs)
-                {
-                    var kpiInfo = db.KPI.FirstOrDefault(k => k.id == mapping.KPIID);
-                    if (kpiInfo == null) continue;
+        //            double finalScoreToSave = 0;
+        //            string kpiName = kpiInfo.name.ToLower();
 
-                    double finalScoreToSave = 0;
-                    string kpiName = kpiInfo.name.ToLower();
+        //            if (kpiName.Contains("student")) finalScoreToSave = studentAvg;
+        //            else if (kpiName.Contains("peer")) finalScoreToSave = peerAvg;
+        //            else continue;
 
-                    if (kpiName.Contains("student")) finalScoreToSave = studentAvg;
-                    else if (kpiName.Contains("peer")) finalScoreToSave = peerAvg;
-                    else continue;
+        //            var existingRecord = db.KPIScore.FirstOrDefault(ks => ks.empID == teacherId && ks.empKPIID == mapping.id);
 
-                    var existingRecord = db.KPIScore.FirstOrDefault(ks => ks.empID == teacherId && ks.empKPIID == mapping.id);
-
-                    if (existingRecord != null)
-                    {
-                        // Score ko decimal/float mein hi rehne dein agar DB column support karta hai
-                        // Warna rounding ki wajah se 3.8 aur 4.2 mein farq khatam ho jayega
-                        existingRecord.score = (int)Math.Round(finalScoreToSave);
-                    }
-                    else
-                    {
-                        db.KPIScore.Add(new KPIScore
-                        {
-                            empKPIID = mapping.id,
-                            empID = teacherId,
-                            score = (int)Math.Round(finalScoreToSave),
-                            evaluatorID = "SYSTEM_SYNC"
-                        });
-                    }
-                }
-                db.SaveChanges();
-                return Ok(new { Message = "Synced", StudentAverage = studentAvg, PeerAverage = peerAvg });
-            }
-            catch (Exception ex) { return InternalServerError(ex); }
-        }
+        //            if (existingRecord != null)
+        //            {
+        //                // Score ko decimal/float mein hi rehne dein agar DB column support karta hai
+        //                // Warna rounding ki wajah se 3.8 aur 4.2 mein farq khatam ho jayega
+        //                existingRecord.score = (int)Math.Round(finalScoreToSave);
+        //            }
+        //            else
+        //            {
+        //                db.KPIScore.Add(new KPIScore
+        //                {
+        //                    empKPIID = mapping.id,
+        //                    empID = teacherId,
+        //                    score = (int)Math.Round(finalScoreToSave),
+        //                    evaluatorID = "SYSTEM_SYNC"
+        //                });
+        //            }
+        //        }
+        //        db.SaveChanges();
+        //        return Ok(new { Message = "Synced", StudentAverage = studentAvg, PeerAverage = peerAvg });
+        //    }
+        //    catch (Exception ex) { return InternalServerError(ex); }
+        //}
     } }

@@ -274,6 +274,7 @@
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
     <Compile Include="Controllers\Director\EmailController.cs" />
     <Compile Include="Controllers\Director\QuestionsController.cs" />
+    <Compile Include="Controllers\Director\SeePerformanceDirectorController.cs" />
     <Compile Include="Controllers\enrollment\EnrollmentController.cs" />
     <Compile Include="Controllers\HOD\CourseManagementController.cs" />
     <Compile Include="Controllers\HOD\EmployeeTypeController.cs" />
