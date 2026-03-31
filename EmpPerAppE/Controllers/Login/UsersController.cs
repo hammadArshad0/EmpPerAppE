@@ -51,7 +51,7 @@ namespace EmpPerAppE.Controllers.Login
         {
             try
             {
-                // 1. Authenticate User from Users Table
+                // 1. Authenticate User
                 var userRecord = db.Users.FirstOrDefault(x => x.id == id && x.password == password && x.isActive == 1);
 
                 if (userRecord == null)
@@ -63,28 +63,30 @@ namespace EmpPerAppE.Controllers.Login
                 string currentSessionName = "N/A";
                 int? currentSessionId = null;
 
-                // 2. Role based Name and Session tracking using Enrollment Table
+                // Sabse pehle Global Latest Session nikal lete hain fallback ke liye
+                var globalLatestSession = db.Session.OrderByDescending(s => s.id).FirstOrDefault();
+
+                // 2. Role based Name and Latest Session tracking
                 if (userRecord.role == "Student")
                 {
                     var student = db.Student.FirstOrDefault(s => s.userID == userRecord.id);
                     if (student != null)
                     {
                         fullName = student.name;
-
-                        // Student ki latest enrollment se session nikalna
+                        // Student ki sabse latest (Highest Session ID) enrollment uthana
                         var enrollment = db.Enrollment
                                            .Where(e => e.studentID == student.userID)
-                                           .OrderByDescending(e => e.id)
+                                           .OrderByDescending(e => e.sessionID) // Yahan sessionID se sort kiya
                                            .FirstOrDefault();
 
-                        if (enrollment != null)
+                        var session = (enrollment != null)
+                                      ? db.Session.FirstOrDefault(s => s.id == enrollment.sessionID)
+                                      : globalLatestSession;
+
+                        if (session != null)
                         {
-                            var session = db.Session.FirstOrDefault(s => s.id == enrollment.sessionID);
-                            if (session != null)
-                            {
-                                currentSessionId = session.id;
-                                currentSessionName = session.name;
-                            }
+                            currentSessionId = session.id;
+                            currentSessionName = session.name;
                         }
                     }
                 }
@@ -94,37 +96,34 @@ namespace EmpPerAppE.Controllers.Login
                     if (teacher != null)
                     {
                         fullName = teacher.name;
-
-                        // Teacher jis session mein students ko parha raha hai (Enrollment Table se)
+                        // Teacher jis latest session mein parha raha hai
                         var teacherRecord = db.Enrollment
-                                           .Where(e => e.teacherID == teacher.userID)
-                                           .OrderByDescending(e => e.id)
-                                           .FirstOrDefault();
+                                               .Where(e => e.teacherID == teacher.userID)
+                                               .OrderByDescending(e => e.sessionID) // Yahan sessionID se sort kiya
+                                               .FirstOrDefault();
 
-                        if (teacherRecord != null)
+                        var session = (teacherRecord != null)
+                                      ? db.Session.FirstOrDefault(s => s.id == teacherRecord.sessionID)
+                                      : globalLatestSession;
+
+                        if (session != null)
                         {
-                            var session = db.Session.FirstOrDefault(s => s.id == teacherRecord.sessionID);
-                            if (session != null)
-                            {
-                                currentSessionId = session.id;
-                                currentSessionName = session.name;
-                            }
+                            currentSessionId = session.id;
+                            currentSessionName = session.name;
                         }
                     }
                 }
-                else if (userRecord.role == "HOD" || userRecord.role == "Admin")
+                else // HOD or Admin
                 {
                     fullName = userRecord.role == "HOD" ? "Department Head" : "Administrator";
-                    // Management roles ke liye default latest session
-                    var lastSession = db.Session.OrderByDescending(s => s.id).FirstOrDefault();
-                    if (lastSession != null)
+                    if (globalLatestSession != null)
                     {
-                        currentSessionId = lastSession.id;
-                        currentSessionName = lastSession.name;
+                        currentSessionId = globalLatestSession.id;
+                        currentSessionName = globalLatestSession.name;
                     }
                 }
 
-                // 3. Complete Response for Integration
+                // 3. Final Response
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     message = "LoginSuccessful",
@@ -132,8 +131,7 @@ namespace EmpPerAppE.Controllers.Login
                     userId = userRecord.id,
                     name = fullName,
                     sessionName = currentSessionName,
-                    sessionId = currentSessionId,
-
+                    sessionId = currentSessionId
                 });
             }
             catch (Exception ex)
@@ -142,4 +140,5 @@ namespace EmpPerAppE.Controllers.Login
             }
         }
     }
-}
+    }
+

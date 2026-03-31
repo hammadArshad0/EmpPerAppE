@@ -160,9 +160,22 @@ namespace EmpPerAppE.Controllers.HOD
                     int kpiId = (int)weightRec.KPIID;
                     int kpiTotalWeight = db.SessionKPIWeight.Where(w => w.KPIID == kpiId && w.SessionID == sid).Sum(x => x.Weight ?? 0);
 
-                    // 1. Remove from Mapping Table - IMPORTANT
+                    // --- NAYI LINES START (KPIScore delete karna zaroori hai) ---
+                    // 1. Pehle mapping record dhoondein
                     var mapRec = db.EmployeSessionKPI.FirstOrDefault(m => m.SubKPIID == subid && m.SessionID == sid);
-                    if (mapRec != null) db.EmployeSessionKPI.Remove(mapRec);
+                    if (mapRec != null)
+                    {
+                        // 2. KPIScore mein is mapping ID (empKPIID) ke saare records delete karein
+                        var relatedScores = db.KPIScore.Where(s => s.empKPIID == mapRec.id).ToList();
+                        if (relatedScores.Any()) db.KPIScore.RemoveRange(relatedScores);
+
+                        // 3. Phir mapping record ko delete karein
+                        db.EmployeSessionKPI.Remove(mapRec);
+                    }
+                    // --- NAYI LINES END ---
+                    // 1. Remove from Mapping Table - IMPORTANT
+                    //var mapRec = db.EmployeSessionKPI.FirstOrDefault(m => m.SubKPIID == subid && m.SessionID == sid);
+                    //if (mapRec != null) db.EmployeSessionKPI.Remove(mapRec);
 
                     // 2. Remove Weight and SubKPI definition
                     db.SessionKPIWeight.Remove(weightRec);
@@ -210,9 +223,23 @@ namespace EmpPerAppE.Controllers.HOD
 
                     int empTypeId = kpi.KPI_Employeetype ?? 0;
 
-                    // 1. Remove from Mapping Table (EmployeSessionKPI) - IMPORTANT
+                    // --- NAYI LINES START (KPIScore delete karna zaroori hai) ---
+                    // 1. Is KPI ki saari mappings nikalain
                     var mappings = db.EmployeSessionKPI.Where(m => m.KPIID == kpiid && m.SessionID == sid).ToList();
-                    foreach (var m in mappings) db.EmployeSessionKPI.Remove(m);
+                    foreach (var m in mappings)
+                    {
+                        // 2. Har mapping ke scores delete karein
+                        var relatedScores = db.KPIScore.Where(s => s.empKPIID == m.id).ToList();
+                        if (relatedScores.Any()) db.KPIScore.RemoveRange(relatedScores);
+
+                        // 3. Mapping delete karein
+                        db.EmployeSessionKPI.Remove(m);
+                    }
+                    // --- NAYI LINES END ---
+
+                    // 1. Remove from Mapping Table (EmployeSessionKPI) - IMPORTANT
+                    //var mappings = db.EmployeSessionKPI.Where(m => m.KPIID == kpiid && m.SessionID == sid).ToList();
+                    //foreach (var m in mappings) db.EmployeSessionKPI.Remove(m);
 
                     // 2. Remove Weights
                     var weights = db.SessionKPIWeight.Where(w => w.KPIID == kpiid && w.SessionID == sid).ToList();
