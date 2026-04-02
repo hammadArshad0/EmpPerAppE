@@ -50,32 +50,80 @@ namespace EmpPerAppE.Controllers.HOD
 
         // 2. POST: Evaluate Submission (Handles Paper and Folder)
         [HttpPost]
-        [Route("SaveEvaluation")] // Route matching your frontend: /CourseManagement/SaveEvaluation
+        [Route("SaveEvaluation")]
         public IHttpActionResult SaveEvaluation(EvaluationRequestDTO dto)
         {
-            if (dto == null || dto.Evaluations == null) return BadRequest("Invalid Data");
+            if (dto == null || dto.Evaluations == null || !dto.Evaluations.Any())
+                return BadRequest("Invalid Data");
 
             try
             {
                 using (var scope = new TransactionScope())
                 {
+                    int total = dto.Evaluations.Count;
+
+                    // ✅ FIX: Har course ke marks jodo
+                    int totalPaperEarned = 0;
+                    int totalFolderEarned = 0;
+
                     foreach (var eval in dto.Evaluations)
                     {
-                        // Logic: OnTime = 5, Late = 2
-                        // Yahan hum string comparison case-insensitive kar rahe hain (on-time vs OnTime)
-                        int paperScore = eval.PaperStatus.ToLower().Contains("on-time") ? 5 : 2;
-                        int folderScore = eval.FolderStatus.ToLower().Contains("on-time") ? 5 : 2;
-
-                        // 1. Save Paper Submission Score for this specific course
-                        UpsertScore(dto.TeacherID, dto.SessionID, "Paper Submission", paperScore, dto.HODID, eval.CourseCode);
-
-                        // 2. Save Folder Submission Score for this specific course
-                        UpsertScore(dto.TeacherID, dto.SessionID, "Folder Submission", folderScore, dto.HODID, eval.CourseCode);
+                        // On-time = 5, Late = 2
+                        totalPaperEarned += eval.PaperStatus.ToLower().Contains("on-time") ? 5 : 2;
+                        totalFolderEarned += eval.FolderStatus.ToLower().Contains("on-time") ? 5 : 2;
                     }
+
+                    // ✅ FIX: Sum ki bajaye average lo
+                    // Example: 3 courses sab on-time  → (5+5+5)/3 = 5 ✅
+                    // Example: 3 courses sab late      → (2+2+2)/3 = 2 ✅
+                    // Example: 2 courses 1 each        → (5+2)/2   = 4 ✅
+                    int paperScore = (int)Math.Round((double)totalPaperEarned / total);
+                    int folderScore = (int)Math.Round((double)totalFolderEarned / total);
+
+                    // ✅ FIX: Contains ki bajaye direct ID comparison — EF error nahi dega
+                    // Paper ke purane scores delete karo
+                    var paperMapping = db.EmployeSessionKPI.FirstOrDefault(m =>
+                        m.SubKPI.name.Contains("Paper") && m.SessionID == dto.SessionID);
+
+                    if (paperMapping != null)
+                    {
+                        int paperMappingId = paperMapping.id;
+                        var oldPaper = db.KPIScore
+                            .Where(s => s.empID == dto.TeacherID && s.empKPIID == paperMappingId)
+                            .ToList();
+                        db.KPIScore.RemoveRange(oldPaper);
+                    }
+
+                    // Folder ke purane scores delete karo
+                    var folderMapping = db.EmployeSessionKPI.FirstOrDefault(m =>
+                        m.SubKPI.name.Contains("Folder") && m.SessionID == dto.SessionID);
+
+                    if (folderMapping != null)
+                    {
+                        int folderMappingId = folderMapping.id;
+                        var oldFolder = db.KPIScore
+                            .Where(s => s.empID == dto.TeacherID && s.empKPIID == folderMappingId)
+                            .ToList();
+                        db.KPIScore.RemoveRange(oldFolder);
+                    }
+
+                    // Pehle delete save karo
+                    db.SaveChanges();
+
+                    // ✅ Naye averaged scores save karo (ek record per SubKPI)
+                    UpsertScore(dto.TeacherID, dto.SessionID, "Paper Submission", paperScore, dto.HODID);
+                    UpsertScore(dto.TeacherID, dto.SessionID, "Folder Submission", folderScore, dto.HODID);
 
                     db.SaveChanges();
                     scope.Complete();
-                    return Ok(new { message = "Evaluation saved/updated successfully for all courses!" });
+
+                    return Ok(new
+                    {
+                        message = "Evaluation saved successfully!",
+                        paperScore,
+                        folderScore,
+                        totalCourses = total
+                    });
                 }
             }
             catch (Exception ex)
@@ -84,39 +132,34 @@ namespace EmpPerAppE.Controllers.HOD
             }
         }
 
-        // Updated Helper Method (Added CourseCode support)
-        private void UpsertScore(string tid, int sid, string subKpiName, int scoreValue, string hodId, string courseCode)
+        // ✅ FIX: CourseCode parameter hata diya — ek hi record per teacher per SubKPI
+        private void UpsertScore(string tid, int sid, string subKpiName, int scoreValue, string hodId)
         {
             var mapping = db.EmployeSessionKPI.FirstOrDefault(m =>
                           m.SubKPI.name.Contains(subKpiName) && m.SessionID == sid);
 
-            if (mapping != null)
-            {
-                // Yahan hum check kar rahe hain ke is Teacher ka, is Course ka, is Session mein record pehle se hai ya nahi
-                // Note: Agar aapke KPIScore table mein courseCode ka column nahi hai, to ye global save hoga.
-                var existingScore = db.KPIScore.FirstOrDefault(s =>
-                                    s.empKPIID == mapping.id &&
-                                    s.empID == tid);
-                // s.CourseCode == courseCode // Agar column hai to ye line uncomment karein
+            if (mapping == null) return;
 
-                if (existingScore != null)
+            var existingScore = db.KPIScore.FirstOrDefault(s =>
+                                s.empKPIID == mapping.id && s.empID == tid);
+
+            if (existingScore != null)
+            {
+                existingScore.score = scoreValue;
+                existingScore.evaluatorID = hodId;
+            }
+            else
+            {
+                db.KPIScore.Add(new KPIScore
                 {
-                    existingScore.score = scoreValue;
-                    existingScore.evaluatorID = hodId;
-                }
-                else
-                {
-                    db.KPIScore.Add(new KPIScore
-                    {
-                        empKPIID = mapping.id,
-                        empID = tid,
-                        score = scoreValue,
-                        evaluatorID = hodId
-                        // CourseCode = courseCode // Agar column hai to
-                    });
-                }
+                    empKPIID = mapping.id,
+                    empID = tid,
+                    score = scoreValue,
+                    evaluatorID = hodId
+                });
             }
         }
+
         // 4. GET: Teacher Performance/Remarks for Teacher Login
         [HttpGet]
         [Route("my-Courseperformance/{tid}/{sid}")]
@@ -133,7 +176,9 @@ namespace EmpPerAppE.Controllers.HOD
                                        Activity = sub.name,
                                        ObtainedScore = s.score,
                                        Status = s.score == 5 ? "On Time" : "Late",
-                                       Remarks = s.score == 5 ? "Excellent! Submitted on time." : "Delayed submission recorded."
+                                       Remarks = s.score == 5
+                                           ? "Excellent! Submitted on time."
+                                           : "Delayed submission recorded."
                                    }).ToList();
 
                 if (!performance.Any())
