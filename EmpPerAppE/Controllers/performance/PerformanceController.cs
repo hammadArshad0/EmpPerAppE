@@ -68,28 +68,43 @@ namespace EmpPerAppE.Controllers.performance
                         double weight = weightEntry?.Weight ?? 0;
                         string subNameLower = (item.SubKPIName ?? "").ToLower();
                         double multiplier = 0;
+                        double maxScale = 4.0; // ✅ Default max scale
 
                         // Selection logic
                         if (subNameLower.Contains("student"))
+                        {
                             multiplier = studentAvg;
+                            maxScale = 4.0;
+                        }
                         else if (subNameLower.Contains("peer"))
+                        {
                             multiplier = peerAvg;
+                            maxScale = 4.0;
+                        }
+                        else if (subNameLower.Contains("confidential"))
+                        {
+                            multiplier = 0; // ✅ Dexie frontend handle karega
+                            maxScale = 4.0;
+                        }
                         else
                         {
                             var specificConfScore = confScores
                                 .Where(cs => cs.empKPIID == item.id)
                                 .Average(cs => (double?)cs.score);
                             multiplier = specificConfScore ?? 0;
+                            maxScale = 5.0; // ✅ Backend 1 ki tarah Paper/Folder max scale 5
                         }
 
-                        // Calculation: (AvgScore / MaxScale 4) * Weight
-                        double achieved = Math.Round((multiplier / 4.0) * weight, 2);
+                        // Calculation: (AvgScore / MaxScale) * Weight
+                        double achieved = Math.Round((multiplier / maxScale) * weight, 2);
 
                         subDetails.Add(new
                         {
                             SubName = item.SubKPIName,
                             SubMax = weight,
-                            SubAchieved = achieved
+                            SubAchieved = achieved,
+                            MaxScale = maxScale, // ✅ Frontend ko pass kar rahe hain
+                            RawScore = multiplier
                         });
 
                         kpiGroupAchieved += achieved;
@@ -112,16 +127,16 @@ namespace EmpPerAppE.Controllers.performance
                 return Ok(new
                 {
                     Status = "Success",
-                    TeacherName = teacherData?.name,       // As per your SQL: [name]
-                    Department = teacherData?.department, // As per your SQL: [department]
+                    TeacherName = teacherData?.name,
+                    Department = teacherData?.department,
                     SessionName = currentSession.name,
                     OverallPercentage = totalWeight > 0 ? Math.Round((totalAchieved / totalWeight) * 100, 2) : 0,
                     Breakdown = finalBreakdown
                 });
             }
-            catch (Exception ex) 
-            { 
-                return InternalServerError(ex); 
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
             }
         }
     }
