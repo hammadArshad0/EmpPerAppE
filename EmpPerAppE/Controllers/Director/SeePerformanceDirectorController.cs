@@ -23,7 +23,6 @@ namespace EmpPerAppE.Controllers.Director
                 if (currentSession == null || teacher == null)
                     return BadRequest("Invalid Session or Teacher ID.");
 
-                // 1. Fetch Active KPIs for this Session
                 var activeKPIs = db.EmployeSessionKPI
                     .Where(esk => esk.SessionID == sessionId)
                     .Select(esk => new
@@ -31,24 +30,35 @@ namespace EmpPerAppE.Controllers.Director
                         esk.id,
                         esk.KPIID,
                         esk.SubKPIID,
-                        KPIName = db.KPI.Where(k => k.id == esk.KPIID).Select(k => k.name).FirstOrDefault(),
-                        SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID).Select(sk => sk.name).FirstOrDefault()
+                        KPIName = db.KPI.Where(k => k.id == esk.KPIID)
+                                          .Select(k => k.name).FirstOrDefault(),
+                        SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID)
+                                             .Select(sk => sk.name).FirstOrDefault()
                     }).ToList();
 
                 if (!activeKPIs.Any())
                     return Ok(new { Message = "No KPIs configured for this session." });
 
-                // 2. Fetch Base Data (Student & Peer)
-                var studentData = db.StudentEvaluation.Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId);
-                double studentAvg = studentData.Any() ? studentData.Average(se => (double)se.score) : 0;
+                // Student Avg (0-4 scale)
+                var studentData = db.StudentEvaluation
+                    .Where(se => se.Enrollment.teacherID == teacherId
+                              && se.Enrollment.sessionID == sessionId);
+                double studentAvg = studentData.Any()
+                    ? studentData.Average(se => (double)se.score) : 0;
 
-                var peerData = db.PeerEvaluation.Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId);
-                double peerAvg = peerData.Any() ? peerData.Average(pe => (double)pe.score) : 0;
+                // Peer Avg (0-4 scale)
+                var peerData = db.PeerEvaluation
+                    .Where(pe => pe.evaluateeID == teacherId
+                              && pe.PeerEvaluator.sessionID == sessionId);
+                double peerAvg = peerData.Any()
+                    ? peerData.Average(pe => (double)pe.score) : 0;
 
-                // 3. Fetch Confidential Scores
-                var confScores = db.KPIScore.Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId).ToList();
+                // KPIScore table — Paper/Folder (0-5 scale)
+                var kpiScores = db.KPIScore
+                    .Where(ks => ks.empID == teacherId
+                              && ks.EmployeSessionKPI.SessionID == sessionId)
+                    .ToList();
 
-                // 4. Grouping & Calculations
                 var groupedKPIs = activeKPIs.GroupBy(k => new { k.KPIID, k.KPIName });
                 var finalBreakdown = new List<object>();
                 double totalAchieved = 0;
@@ -63,28 +73,48 @@ namespace EmpPerAppE.Controllers.Director
                     foreach (var item in kpiGroup)
                     {
                         var weightEntry = db.SessionKPIWeight.FirstOrDefault(w =>
-                            w.SessionID == sessionId && w.KPIID == item.KPIID && w.SubKPIID == item.SubKPIID);
+                            w.SessionID == sessionId
+                            && w.KPIID == item.KPIID
+                            && w.SubKPIID == item.SubKPIID);
 
                         double weight = weightEntry?.Weight ?? 0;
                         string subNameLower = (item.SubKPIName ?? "").ToLower();
                         double multiplier = 0;
+                        double maxScale = 4.0; // default
 
                         if (subNameLower.Contains("student"))
-                            multiplier = studentAvg;
+                        {
+                            multiplier = studentAvg; // 0-4 scale
+                            maxScale = 4.0;
+                        }
                         else if (subNameLower.Contains("peer"))
-                            multiplier = peerAvg;
+                        {
+                            multiplier = peerAvg; // 0-4 scale
+                            maxScale = 4.0;
+                        }
+                        else if (subNameLower.Contains("confidential"))
+                        {
+                            // ✅ Dexie only — backend 0 bheje
+                            // Frontend Dexie avg se replace karega
+                            multiplier = 0;
+                            maxScale = 4.0;
+                        }
                         else
                         {
-                            var specificList = confScores.Where(cs => cs.empKPIID == item.id).ToList();
-                            multiplier = specificList.Any() ? specificList.Average(cs => (double)cs.score) : 0;
+                            // ✅ Paper/Folder — KPIScore table (0-5 scale)
+                            var specificList = kpiScores
+                                .Where(cs => cs.empKPIID == item.id).ToList();
+                            multiplier = specificList.Any()
+                                ? specificList.Average(cs => (double)cs.score) : 0;
+                            maxScale = 5.0; // ✅ KPIScore max scale = 5
                         }
 
-                        // Formula: (Obtained / MaxScale 4) * Weight
-                        double achieved = Math.Round((multiplier / 4.0) * weight, 2);
+                        // ✅ Scale-aware formula: (multiplier / maxScale) * weight
+                        double achieved = Math.Round((multiplier / maxScale) * weight, 2);
 
                         subDetails.Add(new
                         {
-                            SubName = item.SubKPIName, // Graph label ke liye
+                            SubName = item.SubKPIName,
                             SubMax = weight,
                             SubAchieved = achieved
                         });
@@ -111,7 +141,8 @@ namespace EmpPerAppE.Controllers.Director
                     TeacherName = teacher.name,
                     Department = teacher.department,
                     SessionName = currentSession.name,
-                    OverallPercentage = totalWeight > 0 ? Math.Round((totalAchieved / totalWeight) * 100, 2) : 0,
+                    OverallPercentage = totalWeight > 0
+                        ? Math.Round((totalAchieved / totalWeight) * 100, 2) : 0,
                     Breakdown = finalBreakdown
                 });
             }
@@ -120,26 +151,25 @@ namespace EmpPerAppE.Controllers.Director
                 return InternalServerError(ex);
             }
         }
-            [HttpGet]
-            [Route("GetTeachersBySession/{sessionId}")]
-            public IHttpActionResult GetTeachersBySession(int sessionId)
+
+        [HttpGet]
+        [Route("GetTeachersBySession/{sessionId}")]
+        public IHttpActionResult GetTeachersBySession(int sessionId)
+        {
+            try
             {
-                try
-                {
-                    // Sirf wahi teachers jo is session mein enrolled hain (via Enrollment table)
-                    var enrolledTeachers = db.Enrollment
-                        .Where(e => e.sessionID == sessionId)
-                        .Select(e => new {
-                            UserID = e.Teacher.userID,
-                            Name = e.Teacher.name
-                        })
-                        .Distinct()
-                        .ToList();
+                var enrolledTeachers = db.Enrollment
+                    .Where(e => e.sessionID == sessionId)
+                    .Select(e => new {
+                        UserID = e.Teacher.userID,
+                        Name = e.Teacher.name
+                    })
+                    .Distinct()
+                    .ToList();
 
-                    return Ok(enrolledTeachers);
-                }
-                catch (Exception ex) { return InternalServerError(ex); }
+                return Ok(enrolledTeachers);
             }
-
+            catch (Exception ex) { return InternalServerError(ex); }
         }
     }
+}
