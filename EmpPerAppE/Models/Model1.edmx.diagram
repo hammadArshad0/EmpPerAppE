@@ -53,11 +53,12 @@
         <AssociationConnector Association="fypempModel.FK_Questions_Questionare" />
         <AssociationConnector Association="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" />
         <AssociationConnector Association="fypempModel.FK_StudentEvaluation_Questions" />
-        <EntityTypeShape EntityType="fypempModel.SocietyMember" Width="1.5" PointX="11.25" PointY="5" />
-        <AssociationConnector Association="fypempModel.FK__SocietyMe__sessi__7755B73D" />
-        <AssociationConnector Association="fypempModel.FK__SocietyMemb__SID__756D6ECB" />
-        <AssociationConnector Association="fypempModel.FK__SocietyMemb__TID__76619304" />
         <EntityTypeShape EntityType="fypempModel.Email" Width="1.5" PointX="11.375" PointY="0.75" />
+        <EntityTypeShape EntityType="fypempModel.Societies" Width="1.5" PointX="1.5" PointY="21.25" />
+        <EntityTypeShape EntityType="fypempModel.SocietyAssignments" Width="1.5" PointX="3.75" PointY="0.75" />
+        <AssociationConnector Association="fypempModel.FK__SocietyAs__Sessi__2057CCD0" />
+        <AssociationConnector Association="fypempModel.FK__SocietyAs__Socie__1F63A897" />
+        <AssociationConnector Association="fypempModel.FK__SocietyAs__Teach__214BF109" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

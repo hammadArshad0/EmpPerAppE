@@ -68,7 +68,7 @@ namespace EmpPerAppE.Controllers.performance
                         double weight = weightEntry?.Weight ?? 0;
                         string subNameLower = (item.SubKPIName ?? "").ToLower();
                         double multiplier = 0;
-                        double maxScale = 4.0; // ✅ Default max scale
+                        double maxScale = 4.0; //  Default max scale
 
                         // Selection logic
                         if (subNameLower.Contains("student"))
@@ -83,7 +83,7 @@ namespace EmpPerAppE.Controllers.performance
                         }
                         else if (subNameLower.Contains("confidential"))
                         {
-                            multiplier = 0; // ✅ Dexie frontend handle karega
+                            multiplier = 0; //  Dexie frontend handle karega
                             maxScale = 4.0;
                         }
                         else
@@ -92,7 +92,7 @@ namespace EmpPerAppE.Controllers.performance
                                 .Where(cs => cs.empKPIID == item.id)
                                 .Average(cs => (double?)cs.score);
                             multiplier = specificConfScore ?? 0;
-                            maxScale = 5.0; // ✅ Backend 1 ki tarah Paper/Folder max scale 5
+                            maxScale = 5.0; //  Backend 1 ki tarah Paper/Folder max scale 5
                         }
 
                         // Calculation: (AvgScore / MaxScale) * Weight
@@ -103,7 +103,7 @@ namespace EmpPerAppE.Controllers.performance
                             SubName = item.SubKPIName,
                             SubMax = weight,
                             SubAchieved = achieved,
-                            MaxScale = maxScale, // ✅ Frontend ko pass kar rahe hain
+                            MaxScale = maxScale, //  Frontend ko pass kar rahe hain
                             RawScore = multiplier
                         });
 

@@ -272,6 +272,7 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Controllers\Director\DetailsPerformanceComparisonController.cs" />
     <Compile Include="Controllers\Director\DirectorFilterPerformanceController.cs" />
     <Compile Include="Controllers\Director\EmailController.cs" />
     <Compile Include="Controllers\Director\QuestionsController.cs" />
@@ -302,6 +303,7 @@
     <Compile Include="Models\Course.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
+    <Compile Include="Models\DTO\CompareDTO.cs" />
     <Compile Include="Models\DTO\CourseManagement.cs" />
     <Compile Include="Models\DTO\peerEvalution\PeerSubmissionModel.cs" />
     <Compile Include="Models\DTO\QuestionCreateDto.cs" />
@@ -361,7 +363,10 @@
     <Compile Include="Models\SessionKPIWeight.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
-    <Compile Include="Models\SocietyMember.cs">
+    <Compile Include="Models\Societies.cs">
+      <DependentUpon>Model1.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Models\SocietyAssignments.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
     <Compile Include="Models\Student.cs">

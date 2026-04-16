@@ -19,18 +19,17 @@ namespace EmpPerAppE.Models
             this.Enrollment = new HashSet<Enrollment>();
             this.PeerEvaluation = new HashSet<PeerEvaluation>();
             this.PeerEvaluator = new HashSet<PeerEvaluator>();
-            this.SocietyMember = new HashSet<SocietyMember>();
         }
     
         public string userID { get; set; }
         public string name { get; set; }
         public string department { get; set; }
         public Nullable<int> isPermanentEvaluator { get; set; }
+        public string designation { get; set; }
     
         public virtual ICollection<Enrollment> Enrollment { get; set; }
         public virtual ICollection<PeerEvaluation> PeerEvaluation { get; set; }
         public virtual ICollection<PeerEvaluator> PeerEvaluator { get; set; }
         public virtual Users Users { get; set; }
-        public virtual ICollection<SocietyMember> SocietyMember { get; set; }
     }
 }

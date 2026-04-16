@@ -18,6 +18,7 @@ namespace EmpPerAppE.Models
         {
             this.KPIScore = new HashSet<KPIScore>();
             this.KPIScore1 = new HashSet<KPIScore>();
+            this.SocietyAssignments = new HashSet<SocietyAssignments>();
         }
     
         public string id { get; set; }
@@ -30,5 +31,6 @@ namespace EmpPerAppE.Models
         public virtual ICollection<KPIScore> KPIScore1 { get; set; }
         public virtual Student Student { get; set; }
         public virtual Teacher Teacher { get; set; }
+        public virtual ICollection<SocietyAssignments> SocietyAssignments { get; set; }
     }
 }
