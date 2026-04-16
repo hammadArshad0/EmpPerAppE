@@ -24,74 +24,104 @@ namespace EmpPerAppE.Controllers
                 if (httpRequest.Files.Count == 0) return BadRequest("No file uploaded.");
 
                 var file = httpRequest.Files[0];
+
+                // System.Text Encoding registration for ExcelDataReader
                 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
+                int insertedCount = 0;
+                int updatedCount = 0;
+
                 using (var stream = file.InputStream)
-                using (var reader = ExcelReaderFactory.CreateReader(stream))
                 {
-                    var result = reader.AsDataSet(new ExcelDataSetConfiguration()
+                    // ✅ Reader ko stream ke andar hi hona chahiye
+                    using (var reader = ExcelReaderFactory.CreateReader(stream))
                     {
-                        ConfigureDataTable = (_) => new ExcelDataTableConfiguration() { UseHeaderRow = true }
-                    });
-
-                    var dataTable = result.Tables[0];
-                    int insertedCount = 0;
-                    int skippedDuplicate = 0;
-                    int skippedInvalid = 0;
-
-                    foreach (DataRow row in dataTable.Rows)
-                    {
-                        if (row["Userid"] == DBNull.Value || row["Name"] == DBNull.Value || row["Department"] == DBNull.Value)
+                        var result = reader.AsDataSet(new ExcelDataSetConfiguration()
                         {
-                            skippedInvalid++;
-                            continue;
-                        }
+                            ConfigureDataTable = (_) => new ExcelDataTableConfiguration() { UseHeaderRow = true }
+                        });
 
-                        string userId = row["Userid"].ToString().Trim();
-                        string name = row["Name"].ToString().Trim();
-                        string department = row["Department"].ToString().Trim();
+                        var dataTable = result.Tables[0];
 
-                        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(name))
+                        foreach (DataRow row in dataTable.Rows)
                         {
-                            skippedInvalid++;
-                            continue;
-                        }
-
-                        // 1. Check Users table
-                        var existingUser = db.Users.Find(userId);
-                        if (existingUser == null)
-                        {
-                            db.Users.Add(new EmpPerAppE.Models.Users
+                            // ✅ Null check with case-sensitive headers
+                            if (row["UserID"] == DBNull.Value || row["Name"] == DBNull.Value ||
+                                row["Department"] == DBNull.Value || row["Designation"] == DBNull.Value)
                             {
-                                id = userId,
-                                password = "default123",
-                                role = "Teacher",
-                                isActive = 1
-                            });
+                                continue;
+                            }
+
+                            string userId = row["UserID"].ToString().Trim();
+                            string name = row["Name"].ToString().Trim();
+                            string department = row["Department"].ToString().Trim();
+                            string designation = row["Designation"].ToString().Trim();
+
+                            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(name)) continue;
+
+                            // 1. Handle Users Table (Login Account)
+                            var existingUser = db.Users.Find(userId);
+                            if (existingUser == null)
+                            {
+                                db.Users.Add(new EmpPerAppE.Models.Users
+                                {
+                                    id = userId,
+                                    password = "default123", // Default password
+                                    role = "Teacher",
+                                    isActive = 1
+                                });
+                            }
+
+                            // 2. Handle Teacher Table (Add or Update Logic)
+                            var teacher = db.Teacher.Find(userId);
+                            if (teacher == null)
+                            {
+                                // Naya Teacher Add karein
+                                db.Teacher.Add(new EmpPerAppE.Models.Teacher
+                                {
+                                    userID = userId,
+                                    name = name,
+                                    department = department,
+                                    designation = designation,
+                                    isPermanentEvaluator = 0
+                                });
+                                insertedCount++;
+                            }
+                            else
+                            {
+                                // Pehle se mojood teacher ko update karein
+                                teacher.name = name;
+                                teacher.department = department;
+                                teacher.designation = designation;
+                                updatedCount++;
+                            }
                         }
 
-                        // 2. Fix here: Use full path for Teacher Model
-                        if (db.Teacher.Find(userId) != null)
-                        {
-                            skippedDuplicate++;
-                            continue;
-                        }
-
-                        // ✅ FIX: EmpPerAppE.Models.Teacher use kiya taake namespace conflict na ho
-                        EmpPerAppE.Models.Teacher teacherObj = new EmpPerAppE.Models.Teacher()
-                        {
-                            userID = userId,
-                            name = name,
-                            department = department
-                        };
-
-                        db.Teacher.Add(teacherObj);
-                        insertedCount++;
+                        db.SaveChanges();
                     }
-
-                    db.SaveChanges();
-                    return Ok($"{insertedCount} teachers uploaded successfully.");
                 }
+
+                // ✅ Final Message logic for Alert
+                string finalMessage = "";
+                if (insertedCount > 0 && updatedCount > 0)
+                {
+                    finalMessage = $"{insertedCount} Teachers Added & {updatedCount} Updated Successfully!";
+                }
+                else if (insertedCount > 0)
+                {
+                    finalMessage = $"{insertedCount} New Teachers Added Successfully!";
+                }
+                else if (updatedCount > 0)
+                {
+                    finalMessage = $"{updatedCount} Teachers Updated Successfully!";
+                }
+                else
+                {
+                    finalMessage = "Excel Processed: No new changes found.";
+                }
+
+                // Return as simple string for React alert
+                return Ok(finalMessage);
             }
             catch (Exception ex)
             {
@@ -105,13 +135,13 @@ namespace EmpPerAppE.Controllers
         {
             try
             {
-                // Select query mein bhi db.Teacher check karein
                 var teachers = db.Teacher
                     .Select(t => new
                     {
                         UserID = t.userID,
                         Name = t.name,
-                        Department = t.department
+                        Department = t.department,
+                        Designation = t.designation
                     })
                     .ToList();
 
@@ -123,53 +153,51 @@ namespace EmpPerAppE.Controllers
             }
         }
 
-            // --- SIMPLE UPDATE: Sirf ID aur query strings/params use karein ---
-            [HttpPut]
-            [Route("update")]
-            public IHttpActionResult UpdateTeacher(string id, string name, string dept)
+        [HttpPut]
+        [Route("update")]
+        public IHttpActionResult UpdateTeacher(string id, string name, string dept, string designation)
+        {
+            try
             {
-                try
-                {
-                    var teacher = db.Teacher.Find(id);
-                    if (teacher == null) return NotFound();
+                var teacher = db.Teacher.Find(id);
+                if (teacher == null) return NotFound();
 
-                    // Simple assignments
-                    teacher.name = name;
-                    teacher.department = dept;
+                teacher.name = name;
+                teacher.department = dept;
+                teacher.designation = designation;
 
-                    db.SaveChanges();
-                    return Ok("Teacher updated successfully.");
-                }
-                catch (Exception ex)
-                {
-                    return InternalServerError(ex);
-                }
+                db.SaveChanges();
+                return Ok("Teacher updated successfully.");
             }
-
-            // --- SIMPLE DELETE: Sirf ID pass karein ---
-            [HttpDelete]
-            [Route("delete")]
-            public IHttpActionResult DeleteTeacher(string id)
+            catch (Exception ex)
             {
-                try
-                {
-                    var teacher = db.Teacher.Find(id);
-                    if (teacher == null) return NotFound();
+                return InternalServerError(ex);
+            }
+        }
 
-                    // 1. Pehle Teacher table se delete karein
-                    db.Teacher.Remove(teacher);
+        [HttpDelete]
+        [Route("delete")]
+        public IHttpActionResult DeleteTeacher(string id)
+        {
+            try
+            {
+                var teacher = db.Teacher.Find(id);
+                if (teacher == null) return NotFound();
 
-                    // 2. Phir Users table se uska login delete karein
-                    var userAcc = db.Users.Find(id);
-                    if (userAcc != null) db.Users.Remove(userAcc);
+                // 1. Remove from Teacher table
+                db.Teacher.Remove(teacher);
 
-                    db.SaveChanges();
-                    return Ok("Teacher deleted successfully.");
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest("Delete failed. ID might be linked elsewhere.");
-                }
+                // 2. Remove from Users table
+                var userAcc = db.Users.Find(id);
+                if (userAcc != null) db.Users.Remove(userAcc);
+
+                db.SaveChanges();
+                return Ok("Teacher deleted successfully.");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("Delete failed. ID might be linked elsewhere.");
             }
         }
     }
+}

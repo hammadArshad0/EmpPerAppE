@@ -12,16 +12,17 @@ namespace EmpPerAppE.Models
     using System;
     using System.Collections.Generic;
     
-    public partial class SocietyMember
+    public partial class Societies
     {
-        public int id { get; set; }
-        public string SID { get; set; }
-        public string TID { get; set; }
-        public Nullable<int> sessionID { get; set; }
-        public Nullable<int> ISCP { get; set; }
+        public Societies()
+        {
+            this.SocietyAssignments = new HashSet<SocietyAssignments>();
+        }
     
-        public virtual Session Session { get; set; }
-        public virtual Student Student { get; set; }
-        public virtual Teacher Teacher { get; set; }
+        public int SocietyId { get; set; }
+        public string SocietyName { get; set; }
+        public string Description { get; set; }
+    
+        public virtual ICollection<SocietyAssignments> SocietyAssignments { get; set; }
     }
 }
