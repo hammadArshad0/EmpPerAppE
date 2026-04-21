@@ -144,7 +144,7 @@ namespace EmpPerAppE.Controllers.Director
     // Fixed: Count() brackets lagaye hain
     double peerMaxTotal = peerList.Count() * MAX_SCORE_PER_QUESTION; 
     double peerAverageOutOfTen = peerMaxTotal > 0 ? (peerTotalScore / peerMaxTotal) * SCALE_TO_TEN : 0;
-
+              
             // --- Student Evaluation ---
             var studentList = db.StudentEvaluation
                 .Where(s =>

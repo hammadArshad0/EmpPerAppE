@@ -272,6 +272,7 @@
     <Compile Include="Areas\HelpPage\SampleGeneration\SampleDirection.cs" />
     <Compile Include="Areas\HelpPage\SampleGeneration\TextSample.cs" />
     <Compile Include="Areas\HelpPage\XmlDocumentationProvider.cs" />
+    <Compile Include="Controllers\Director\AcademicPerformanceController.cs" />
     <Compile Include="Controllers\Director\DetailsPerformanceComparisonController.cs" />
     <Compile Include="Controllers\Director\DirectorFilterPerformanceController.cs" />
     <Compile Include="Controllers\Director\EmailController.cs" />
