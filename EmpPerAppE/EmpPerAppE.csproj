@@ -284,6 +284,7 @@
     <Compile Include="Controllers\HOD\KpiController.cs" />
     <Compile Include="Controllers\HOD\PeerEvaluatorController.cs" />
     <Compile Include="Controllers\HOD\SessionController.cs" />
+    <Compile Include="Controllers\HOD\SocietyManagementController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\Login\UsersController.cs" />
     <Compile Include="Controllers\performance\PerformanceController.cs" />
@@ -310,6 +311,7 @@
     <Compile Include="Models\DTO\QuestionCreateDto.cs" />
     <Compile Include="Models\DTO\QuestionnaireListDto.cs" />
     <Compile Include="Models\DTO\SaveQuestionnaireChangesDto.cs" />
+    <Compile Include="Models\DTO\SocietyDTO.cs" />
     <Compile Include="Models\DTO\studentevalution\EvaluationSubmissionDto.cs" />
     <Compile Include="Models\DTO\ToggleQuestionnaireDto.cs" />
     <Compile Include="Models\Email.cs">
