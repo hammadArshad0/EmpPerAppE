@@ -62,7 +62,7 @@ namespace EmpPerAppE.Controllers.HOD
                 {
                     int total = dto.Evaluations.Count;
 
-                    // ✅ FIX: Har course ke marks jodo
+                    //  FIX: Har course ke marks jodo
                     int totalPaperEarned = 0;
                     int totalFolderEarned = 0;
 
@@ -73,14 +73,14 @@ namespace EmpPerAppE.Controllers.HOD
                         totalFolderEarned += eval.FolderStatus.ToLower().Contains("on-time") ? 5 : 2;
                     }
 
-                    // ✅ FIX: Sum ki bajaye average lo
-                    // Example: 3 courses sab on-time  → (5+5+5)/3 = 5 ✅
-                    // Example: 3 courses sab late      → (2+2+2)/3 = 2 ✅
-                    // Example: 2 courses 1 each        → (5+2)/2   = 4 ✅
+                    // FIX: Sum ki bajaye average lo
+                    // Example: 3 courses sab on-time  → (5+5+5)/3 = 5 
+                    // Example: 3 courses sab late      → (2+2+2)/3 = 2 
+                    // Example: 2 courses 1 each        → (5+2)/2   = 4 
                     int paperScore = (int)Math.Round((double)totalPaperEarned / total);
                     int folderScore = (int)Math.Round((double)totalFolderEarned / total);
 
-                    // ✅ FIX: Contains ki bajaye direct ID comparison — EF error nahi dega
+                    // FIX: Contains ki bajaye direct ID comparison — EF error nahi dega
                     // Paper ke purane scores delete karo
                     var paperMapping = db.EmployeSessionKPI.FirstOrDefault(m =>
                         m.SubKPI.name.Contains("Paper") && m.SessionID == dto.SessionID);
@@ -110,7 +110,7 @@ namespace EmpPerAppE.Controllers.HOD
                     // Pehle delete save karo
                     db.SaveChanges();
 
-                    // ✅ Naye averaged scores save karo (ek record per SubKPI)
+                    //  Naye averaged scores save karo (ek record per SubKPI)
                     UpsertScore(dto.TeacherID, dto.SessionID, "Paper Submission", paperScore, dto.HODID);
                     UpsertScore(dto.TeacherID, dto.SessionID, "Folder Submission", folderScore, dto.HODID);
 
@@ -132,7 +132,7 @@ namespace EmpPerAppE.Controllers.HOD
             }
         }
 
-        // ✅ FIX: CourseCode parameter hata diya — ek hi record per teacher per SubKPI
+        // FIX: CourseCode parameter hata diya — ek hi record per teacher per SubKPI
         private void UpsertScore(string tid, int sid, string subKpiName, int scoreValue, string hodId)
         {
             var mapping = db.EmployeSessionKPI.FirstOrDefault(m =>

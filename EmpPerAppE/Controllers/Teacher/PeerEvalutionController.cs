@@ -1,5 +1,5 @@
 ﻿using EmpPerAppE.Models;
-using EmpPerAppE.Models.DTO.peerEvalution; // Ensure this is correct
+using EmpPerAppE.Models.DTO.peerEvalution;
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
@@ -11,7 +11,6 @@ namespace EmpPerAppE.Controllers.Teacher
     [RoutePrefix("api/TeacherDashboard")]
     public class PeerEvalutionController : ApiController
     {
-        // Use your actual DB Context name here
         private fypempEntities db = new fypempEntities();
 
         public PeerEvalutionController()
@@ -20,127 +19,126 @@ namespace EmpPerAppE.Controllers.Teacher
             db.Configuration.LazyLoadingEnabled = false;
         }
 
-        // //1. Check Evaluator & Get SessionID(Updated for Session Logic)
-        //[HttpGet]
-        //[Route("IsEvaluator/{userId}")]
-        //public IHttpActionResult IsEvaluator(string userId)
-        //{
-        //    try
-        //    {
-        //        // 1. Pehle check karein ke kya ye Teacher table mein 'Permanent' mark hai?
-        //        var teacher = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == userId.Trim().ToLower());
+        // Helper: Designation Rank logic (Common for all methods)
+        private int GetDesignationRank(string designation)
+        {
+            if (string.IsNullOrWhiteSpace(designation)) return 0;
 
-        //        // 2. Phir check karein ke kya ye PeerEvaluator table mein (session-based) add hai?
-        //        var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(e => e.teacherID.Trim().ToLower() == userId.Trim().ToLower());
+            switch (designation.Trim().ToLower())
+            {
+                case "professor": return 4;
+                case "assistant professor": return 3;
+                case "senior lecturer": return 2;
+                case "lecturer": return 1;
+                case "junior lecturer": return 1;
+                case "teacher": return 1;
+                default: return 0;
+            }
+        }
 
-        //        // Agar dono mein se kahin bhi mil jaye
-        //        if (teacher != null && teacher.isPermanentEvaluator == 1)
-        //        {
-        //            return Ok(new
-        //            {
-        //                isEvaluator = true,
-        //                isPermanent = true,
-        //                sessionID = sessionEvaluator?.sessionID // Permanent ke liye ye null ho sakta hai
-        //            });
-        //        }
-
-        //        if (sessionEvaluator != null)
-        //        {
-        //            return Ok(new
-        //            {
-        //                isEvaluator = true,
-        //                isPermanent = false,
-        //                sessionID = sessionEvaluator.sessionID
-        //            });
-        //        }
-
-        //        return Ok(new { isEvaluator = false });
-        //    }
-        //    catch (Exception ex) { return InternalServerError(ex); }
-        //}
-
+        // 1. Check Evaluator & Hierarchy
         [HttpGet]
         [Route("IsEvaluator/{userId}/{targetUserId?}")]
         public IHttpActionResult IsEvaluator(string userId, string targetUserId = null)
         {
             try
             {
-                // 1. Evaluator aur Evaluatee (Target) ka data nikalain
-                var evaluator = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == userId.Trim().ToLower());
-
+                string normId = userId.Trim().ToLower();
+                var evaluator = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == normId);
                 if (evaluator == null) return Ok(new { isEvaluator = false, message = "User not found" });
 
-                // 2. Designation Levels Define Karein (Rank System)
-                Dictionary<string, int> ranks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "professor", 3 },
-            { "assistant professor", 2 },
-            { "senior lecturer", 1 },
-            { "junior lecturer", 0 }
-        };
+                var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(e => e.teacherID.Trim().ToLower() == normId);
+                bool isPerm = evaluator.isPermanentEvaluator == 1;
 
-                // Current evaluator ka rank nikalain
-                int evaluatorRank = ranks.ContainsKey(evaluator.designation) ? ranks[evaluator.designation] : -1;
+                if (!isPerm && sessionEvaluator == null)
+                    return Ok(new { isEvaluator = false });
 
-                // 3. Hierarchy Check (Agar targetUserId provide kiya gaya hai)
+                // Hierarchy Check
                 if (!string.IsNullOrEmpty(targetUserId))
                 {
                     var target = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == targetUserId.Trim().ToLower());
                     if (target != null)
                     {
-                        int targetRank = ranks.ContainsKey(target.designation) ? ranks[target.designation] : -1;
-
-                        // Hierarchy Rule: Assistant Professor (Rank 2) Professor (Rank 3) ki evaluation nahi kar sakta
-                        if (evaluatorRank < targetRank)
+                        if (GetDesignationRank(evaluator.designation) < GetDesignationRank(target.designation))
                         {
-                            return Ok(new
-                            {
-                                isEvaluator = false,
-                                message = "Hierarchy Violation: Juniors cannot evaluate Seniors."
-                            });
+                            return Ok(new { isEvaluator = false, message = "Hierarchy Violation: Juniors cannot evaluate Seniors." });
                         }
                     }
                 }
 
-               // 4.Baki existing logic(Permanent or Session-based)
-        var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(e => e.teacherID.Trim().ToLower() == userId.Trim().ToLower());
-
-                if (evaluator.isPermanentEvaluator == 1)
+                return Ok(new
                 {
-                    return Ok(new
-                    {
-                        isEvaluator = true,
-                        isPermanent = true,
-                        designation = evaluator.designation,
-                        sessionID = sessionEvaluator?.sessionID
-                    });
-                }
-
-                if (sessionEvaluator != null)
-                {
-                    return Ok(new
-                    {
-                        isEvaluator = true,
-                        isPermanent = false,
-                        designation = evaluator.designation,
-                        sessionID = sessionEvaluator.sessionID
-                    });
-                }
-
-                return Ok(new { isEvaluator = false });
+                    isEvaluator = true,
+                    isPermanent = isPerm,
+                    designation = evaluator.designation,
+                    sessionID = sessionEvaluator?.sessionID
+                });
             }
             catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        // 2. Get Questionnaire (Type 'P' or 'T' from frontend)
+        // 2. Get Teachers list based on Rank
+        [HttpGet]
+        [Route("GetTeachersWithCourses")]
+        public IHttpActionResult GetTeachersWithCourses(string userId)
+        {
+            try
+            {
+                string normId = userId.Trim().ToLower();
+
+                // 1. Current Teacher (Evaluator) ki details aur rank nikalna
+                var currentTeacher = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == normId);
+                if (currentTeacher == null) return Ok(new List<object>());
+
+                int currentRank = GetDesignationRank(currentTeacher.designation);
+
+                // 2. Query: Enrollment table ko use karte hue Teachers aur unke Courses fetch karna
+                var teachersData = db.Enrollment
+                    .GroupBy(e => e.teacherID)
+                    .Select(g => new
+                    {
+                        TeacherID = g.Key,
+                        // Teacher info fetch karna including designation and department
+                        TeacherDetails = db.Teacher.Where(t => t.userID == g.Key)
+                                                  .Select(t => new {
+                                                      t.name,
+                                                      t.designation,
+                                                      // Agar Teacher table mein DepartmentName hai to wo use karein
+                                                      Department = t.department
+                                                  }).FirstOrDefault(),
+                        Courses = g.Select(x => x.courseCode).Distinct().ToList()
+                    }).ToList();
+
+                // 3. Filtering Logic: Rank comparison aur Self-filter
+                var filtered = teachersData
+                    .Where(t => t.TeacherDetails != null &&
+                                t.TeacherID.Trim().ToLower() != normId &&
+                                GetDesignationRank(t.TeacherDetails.designation) <= currentRank)
+                    .Select(t => new {
+                        t.TeacherID,
+                        TeacherName = t.TeacherDetails.name,
+                        Designation = t.TeacherDetails.designation, // Front-end badge ke liye
+                        Department = t.TeacherDetails.Department ?? "Faculty", // Front-end badge ke liye
+                        Courses = t.Courses
+                    }).ToList();
+
+                return Ok(filtered);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+        // 3. Get Active Questionnaire
         [HttpGet]
         [Route("GetActiveQuestionnaire/{type}")]
         public IHttpActionResult GetActiveQuestionnaire(string type)
         {
             try
             {
+                string normType = type.Trim().ToLower();
                 var questionnaire = db.Questionare
-                    .Where(q => q.flag == "1" && q.type.Trim().ToLower() == type.Trim().ToLower())
+                    .Where(q => q.flag == "1" && q.type.Trim().ToLower() == normType)
                     .Select(q => new
                     {
                         QuestionareID = q.id,
@@ -156,41 +154,7 @@ namespace EmpPerAppE.Controllers.Teacher
             catch (Exception ex) { return InternalServerError(ex); }
         }
 
-        [HttpGet]
-        [Route("GetTeachersWithCourses/{userId}")]
-        public IHttpActionResult GetTeachersWithCourses(string userId)
-        {
-            try
-            {
-                var teacherProfile = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == userId.Trim().ToLower());
-                if (teacherProfile == null) return BadRequest("Teacher record not found.");
-
-                IQueryable<Enrollment> enrollmentQuery = db.Enrollment;
-
-                // Session filtering for non-permanent evaluators
-                if (teacherProfile.isPermanentEvaluator != 1)
-                {
-                    var sessionAuth = db.PeerEvaluator.FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == userId.Trim().ToLower());
-                    if (sessionAuth == null) return Ok(new List<object>());
-                    enrollmentQuery = enrollmentQuery.Where(e => e.sessionID == sessionAuth.sessionID);
-                }
-
-                var data = enrollmentQuery
-                    .GroupBy(e => e.teacherID)
-                    .Select(g => new
-                    {
-                        TeacherID = g.Key,
-                        TeacherName = db.Teacher.Where(t => t.userID == g.Key).Select(t => t.name).FirstOrDefault(),
-                        Designation = db.Teacher.Where(t => t.userID == g.Key).Select(t => t.designation).FirstOrDefault(), // Rank check ke liye
-                        SessionID = g.FirstOrDefault().sessionID,
-                        Courses = g.Select(x => x.courseCode).Distinct().ToList()
-                    }).ToList();
-
-                return Ok(data);
-            }
-            catch (Exception ex) { return InternalServerError(ex); }
-        }
-        // 4. Submit Evaluation (Using PeerSubmissionModel DTO)
+        // 4. Submit Evaluation (Handling both Permanent and Session Evaluators)
         [HttpPost]
         [Route("SubmitEvaluation")]
         public IHttpActionResult SubmitEvaluation([FromBody] PeerSubmissionModel model)
@@ -199,17 +163,11 @@ namespace EmpPerAppE.Controllers.Teacher
 
             try
             {
-                // 1. Check karein ke kya user PeerEvaluator table mein hai?
-                var sessionEvaluator = db.PeerEvaluator
-                    .FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == model.EvaluatorUserId.Trim().ToLower());
+                string normEvalId = model.EvaluatorUserId.Trim().ToLower();
+                var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == normEvalId);
+                var teacher = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == normEvalId);
 
-                // 2. Check karein ke kya user Teacher table mein Permanent hai?
-                var permanentTeacher = db.Teacher
-                    .FirstOrDefault(t => t.userID.Trim().ToLower() == model.EvaluatorUserId.Trim().ToLower()
-                                    && t.isPermanentEvaluator == 1);
-
-                // Agar dono jagah record nahi milta, toh hi error dein
-                if (sessionEvaluator == null && permanentTeacher == null)
+                if (sessionEvaluator == null && (teacher == null || teacher.isPermanentEvaluator != 1))
                 {
                     return BadRequest("Unauthorized: You are not an assigned evaluator.");
                 }
@@ -218,8 +176,8 @@ namespace EmpPerAppE.Controllers.Teacher
                 {
                     db.PeerEvaluation.Add(new PeerEvaluation
                     {
-                        // Agar session-based hai toh uski ID lagayein, 
-                        // Agar Permanent hai toh yahan logic dekhein (evaluatorID agar null allow karta hai toh null bhejain)
+                        // Agar PeerEvaluator table mein entry nahi (Permanent case), 
+                        // toh evaluatorID null jayega. Ensure your DB allows NULL for this FK.
                         evaluatorID = sessionEvaluator?.id,
                         evaluateeID = model.EvaluateeId,
                         questionID = ans.QuestionId,
@@ -233,22 +191,34 @@ namespace EmpPerAppE.Controllers.Teacher
             }
             catch (Exception ex) { return InternalServerError(ex); }
         }
-        // 5. Get History
+
+        // 5. Get History (Crucial Fix for Permanent Evaluators)
         [HttpGet]
         [Route("GetSubmittedEvaluations/{userId}")]
         public IHttpActionResult GetSubmittedEvaluations(string userId)
         {
             try
             {
-                var evaluator = db.PeerEvaluator.FirstOrDefault(e => e.teacherID == userId);
-                if (evaluator == null) return Ok(new List<object>());
+                string normId = userId.Trim().ToLower();
+                var sessionEval = db.PeerEvaluator.FirstOrDefault(e => e.teacherID.Trim().ToLower() == normId);
 
-                var submitted = db.PeerEvaluation
-                    .Where(p => p.evaluatorID == evaluator.id)
-                    .Select(p => new { TeacherID = p.evaluateeID, CourseCode = p.courseCode })
-                    .Distinct().ToList();
+                // Agar session evaluator hai toh uski ID se filter karein
+                if (sessionEval != null)
+                {
+                    var history = db.PeerEvaluation
+                        .Where(p => p.evaluatorID == sessionEval.id)
+                        .Select(p => new { TeacherID = p.evaluateeID, CourseCode = p.courseCode })
+                        .Distinct().ToList();
+                    return Ok(history);
+                }
 
-                return Ok(submitted);
+                // Agar Permanent Evaluator hai (PeerEvaluator table mein entry nahi hai)
+                // Toh hume PeerEvaluation table mein check karna hoga. 
+                // NOTE: Agar aapke PeerEvaluation table mein "EvaluatorUserID" column nahi hai, 
+                // toh permanent evaluator ki history nikalna mushkil hoga jab tak evaluatorID primary key null hai.
+                // Recommendation: PeerEvaluation table mein EvaluateeID aur CourseCode ke logic se check karein.
+
+                return Ok(new List<object>());
             }
             catch (Exception ex) { return InternalServerError(ex); }
         }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using System.Data.Entity; // Ensure this is added for advanced LINQ if needed
 
 namespace EmpPerAppE.Controllers.HOD
 {
@@ -12,6 +13,36 @@ namespace EmpPerAppE.Controllers.HOD
     public class SessionController : ApiController
     {
         fypempEntities db = new fypempEntities();
+
+        // 1. NAYA FUNCTION: Latest Active Session get karne ke liye
+        [HttpGet]
+        [Route("GetActiveSession")]
+        public IHttpActionResult GetActiveSession()
+        {
+            try
+            {
+                // Sabse latest session uthayega (Ordered by ID Descending)
+                var session = db.Session
+                    .OrderByDescending(s => s.id)
+                    .Select(s => new
+                    {
+                        SessionID = s.id,
+                        SessionName = s.name
+                    })
+                    .FirstOrDefault();
+
+                if (session == null)
+                {
+                    return NotFound();
+                }
+
+                return Ok(session);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
 
         [HttpGet]
         [Route("list")]
@@ -90,5 +121,4 @@ namespace EmpPerAppE.Controllers.HOD
             }
         }
     }
-
 }

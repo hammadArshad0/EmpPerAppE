@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Web.Http;
 using System.Data.Entity;
+using System.Collections.Generic;
 
 namespace EmpPerAppE.Controllers.Director
 {
@@ -207,7 +208,85 @@ namespace EmpPerAppE.Controllers.Director
                 return BadRequest(ex.InnerException?.Message ?? ex.Message);
             }
         }
+        // 2. Get Questionnaire (Type 'P' or 'T' from frontend)
+        [HttpGet]
+        [Route("GetActiveQuestionnaire/{type}")]
+        public IHttpActionResult GetActiveQuestionnaire(string type)
+        {
+            try
+            {
+                var questionnaire = db.Questionare
+                    .Where(q => q.flag == "1" && q.type.Trim().ToLower() == type.Trim().ToLower())
+                    .Select(q => new
+                    {
+                        QuestionareID = q.id,
+                        Questions = db.Questions
+                            .Where(ques => ques.QuestionareID == q.id)
+                            .Select(ques => new { ques.QuestionID, ques.QuestionText })
+                            .ToList()
+                    }).FirstOrDefault();
 
+                if (questionnaire == null) return Ok(new { Message = "No active questionnaire found" });
+                return Ok(questionnaire);
+            }
+            catch (Exception ex) { return InternalServerError(ex); }
+        }
+
+        // ================================
+        // 6️⃣ DELETE FULL QUESTIONNAIRE
+        // ================================
+        [HttpDelete]
+        [Route("Delete/{id}")]
+        public IHttpActionResult DeleteQuestionnaire(int id)
+        {
+            try
+            {
+                var questionnaire = db.Questionare.Include(q => q.Questions).FirstOrDefault(q => q.id == id);
+
+                if (questionnaire == null)
+                    return NotFound();
+
+                // Pehle iske saare sawal delete karein
+                if (questionnaire.Questions != null && questionnaire.Questions.Any())
+                {
+                    db.Questions.RemoveRange(questionnaire.Questions);
+                }
+
+                // Phir main header delete karein
+                db.Questionare.Remove(questionnaire);
+                db.SaveChanges();
+
+                return Ok(new { message = "Questionnaire and all its questions deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("Cannot delete: " + (ex.InnerException?.Message ?? ex.Message));
+            }
+        }
+
+        // ================================
+        // 7️⃣ DELETE INDIVIDUAL QUESTION (Optional - For Edit Page)
+        // ================================
+        [HttpDelete]
+        [Route("DeleteQuestion/{id}")]
+        public IHttpActionResult DeleteIndividualQuestion(int id)
+        {
+            try
+            {
+                var question = db.Questions.Find(id);
+                if (question == null)
+                    return NotFound();
+
+                db.Questions.Remove(question);
+                db.SaveChanges();
+
+                return Ok(new { message = "Question removed successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("Error deleting question: " + ex.Message);
+            }
+        }
 
         protected override void Dispose(bool disposing)
         {
