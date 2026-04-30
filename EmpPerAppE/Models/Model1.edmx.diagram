@@ -59,6 +59,12 @@
         <AssociationConnector Association="fypempModel.FK__SocietyAs__Sessi__2057CCD0" />
         <AssociationConnector Association="fypempModel.FK__SocietyAs__Socie__1F63A897" />
         <AssociationConnector Association="fypempModel.FK__SocietyAs__Teach__214BF109" />
+        <EntityTypeShape EntityType="fypempModel.SocietyEvaluation" Width="1.5" PointX="10.5" PointY="12.375" />
+        <AssociationConnector Association="fypempModel.FK_SocietyEvaluation_Question" />
+        <AssociationConnector Association="fypempModel.FK_SocietyEvaluation_Session" />
+        <AssociationConnector Association="fypempModel.FK_SocietyEvaluation_Society" />
+        <AssociationConnector Association="fypempModel.FK_SocietyEvaluation_Evaluatee" />
+        <AssociationConnector Association="fypempModel.FK_SocietyEvaluation_Evaluator" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

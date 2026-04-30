@@ -118,8 +118,23 @@ namespace EmpPerAppE.Controllers.Director
             return Ok(result);
         }
 
+        // 6. Get All Teachers (Global list for Session Mode)
+        [HttpGet]
+        [Route("GetAllTeachers")]
+        public IHttpActionResult GetAllTeachers()
+        {
+            var teachers = db.Teacher
+                .Select(t => new
+                {
+                    id = t.userID,
+                    name = t.name
+                }).ToList();
+
+            return Ok(teachers);
+        }
+
         // Helper Method: Calculation Logic
-    private object GetTeacherScore(string teacherId, string courseCode, int? sessionId)
+        private object GetTeacherScore(string teacherId, string courseCode, int? sessionId)
 {
     const double MAX_SCORE_PER_QUESTION = 4.0;
     const double SCALE_TO_TEN = 10.0;

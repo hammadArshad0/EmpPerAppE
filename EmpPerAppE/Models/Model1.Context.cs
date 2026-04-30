@@ -46,5 +46,6 @@ namespace EmpPerAppE.Models
         public DbSet<Email> Email { get; set; }
         public DbSet<Societies> Societies { get; set; }
         public DbSet<SocietyAssignments> SocietyAssignments { get; set; }
+        public DbSet<SocietyEvaluation> SocietyEvaluation { get; set; }
     }
 }

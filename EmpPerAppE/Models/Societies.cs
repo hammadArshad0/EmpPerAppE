@@ -17,6 +17,7 @@ namespace EmpPerAppE.Models
         public Societies()
         {
             this.SocietyAssignments = new HashSet<SocietyAssignments>();
+            this.SocietyEvaluation = new HashSet<SocietyEvaluation>();
         }
     
         public int SocietyId { get; set; }
@@ -24,5 +25,6 @@ namespace EmpPerAppE.Models
         public string Description { get; set; }
     
         public virtual ICollection<SocietyAssignments> SocietyAssignments { get; set; }
+        public virtual ICollection<SocietyEvaluation> SocietyEvaluation { get; set; }
     }
 }
