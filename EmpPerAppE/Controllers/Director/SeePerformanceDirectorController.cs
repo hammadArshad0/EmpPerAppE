@@ -20,6 +20,13 @@ namespace EmpPerAppE.Controllers.Director
                 var currentSession = db.Session.FirstOrDefault(s => s.id == sessionId);
                 var teacher = db.Teacher.FirstOrDefault(t => t.userID == teacherId);
 
+                //////////////////////////////////////
+                var societyAssignment = db.SocietyAssignments .FirstOrDefault(sa => sa.TeacherId == teacherId
+                       && sa.SessionId == sessionId);
+
+                bool isSocietyMember = societyAssignment != null;
+                /////////////////////////////////////////////
+
                 if (currentSession == null || teacher == null)
                     return BadRequest("Invalid Session or Teacher ID.");
 
@@ -35,6 +42,22 @@ namespace EmpPerAppE.Controllers.Director
                         SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID)
                                              .Select(sk => sk.name).FirstOrDefault()
                     }).ToList();
+
+                ////////////////////////////////////////////////////////////
+                ///
+                activeKPIs = activeKPIs.Where(item =>
+                {
+                    string subName = (item.SubKPIName ?? "").ToLower();
+
+                    if (subName.Contains("society management") && !isSocietyMember)
+                        return false;
+
+                    return true;
+                }).ToList();
+                ////////////////////////////////////////////////////////////////
+
+
+
 
                 if (!activeKPIs.Any())
                     return Ok(new { Message = "No KPIs configured for this session." });
@@ -52,6 +75,18 @@ namespace EmpPerAppE.Controllers.Director
                               && pe.PeerEvaluator.sessionID == sessionId);
                 double peerAvg = peerData.Any()
                     ? peerData.Average(pe => (double)pe.score) : 0;
+
+                //////////////////////////////////////////////////////
+                ///
+                var societyData = db.SocietyEvaluation .Where(se => se.EvaluateeId == teacherId
+              && se.SessionId == sessionId);
+
+                double societyAvg = societyData.Any()
+                    ? societyData.Average(se => (double)se.Score) : 0;
+                //////////////////////////////////////////////////////
+
+
+
 
                 // KPIScore table — Paper/Folder (0-5 scale)
                 var kpiScores = db.KPIScore
@@ -99,6 +134,14 @@ namespace EmpPerAppE.Controllers.Director
                             multiplier = 0;
                             maxScale = 4.0;
                         }
+                        /////////////////////////////////////////
+                        ///
+                        else if (subNameLower.Contains("Society Management"))
+                        {
+                            multiplier = societyAvg;
+                            maxScale = 4.0;
+                        }
+                        ///////////////////////////////////////////
                         else
                         {
                             // ✅ Paper/Folder — KPIScore table (0-5 scale)

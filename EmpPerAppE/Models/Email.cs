@@ -17,5 +17,6 @@ namespace EmpPerAppE.Models
         public int id { get; set; }
         public string mail { get; set; }
         public Nullable<bool> isActive { get; set; }
+        public string password { get; set; }
     }
 }

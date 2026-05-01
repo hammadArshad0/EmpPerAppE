@@ -11,91 +11,131 @@ namespace EmpPerAppE.Controllers.performance
     {
         fypempEntities db = new fypempEntities();
 
+        //[HttpGet]
+        //[Route("GetTeacherPerformanceAnalytics/{teacherId}/{sessionId}")]
+     
         [HttpGet]
         [Route("GetTeacherPerformanceAnalytics/{teacherId}/{sessionId}")]
         public IHttpActionResult GetTeacherPerformanceAnalytics(string teacherId, int sessionId)
         {
             try
             {
-                // 1. Basic Data Fetching (Session & Teacher)
+                // 1. Session + Teacher
                 var currentSession = db.Session.FirstOrDefault(s => s.id == sessionId);
-
                 if (currentSession == null) return BadRequest("Invalid Session ID.");
 
                 var teacherData = db.Teacher.FirstOrDefault(t => t.userID == teacherId);
                 if (teacherData == null) return BadRequest("Teacher not found.");
 
-                // 2. Fetch Active KPIs for this Session
+                // ================= SOCIETY CHECK /// same project =================
+                var isSocietyMember = db.SocietyAssignments
+                    .Any(sa => sa.TeacherId == teacherId && sa.SessionId == sessionId);
+
+
+                // 2. Active KPIs
                 var activeKPIs = db.EmployeSessionKPI
                     .Where(esk => esk.SessionID == sessionId)
-                    .Select(esk => new {
+                    .Select(esk => new
+                    {
                         esk.id,
                         esk.KPIID,
                         esk.SubKPIID,
                         KPIName = db.KPI.Where(k => k.id == esk.KPIID).Select(k => k.name).FirstOrDefault(),
                         SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID).Select(sk => sk.name).FirstOrDefault()
-                    }).ToList();
+                    })
+                    .ToList();
 
-                if (!activeKPIs.Any()) return Ok(new { Status = "Empty", Message = "No KPIs configured for this session." });
+                if (!activeKPIs.Any())
+                    return Ok(new { Status = "Empty", Message = "No KPIs configured for this session." });
 
-                // 3. Fetch Averages (Calculated once to optimize performance)
-                var studentData = db.StudentEvaluation.Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId);
-                double studentAvg = studentData.Any() ? studentData.Average(se => (double)se.score) : 0;
+                // ================= FILTER SOCIETY KPI =================
+                activeKPIs = activeKPIs.Where(item =>
+                {
+                    string subName = (item.SubKPIName ?? "").ToLower();
 
-                var peerData = db.PeerEvaluation.Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId);
-                double peerAvg = peerData.Any() ? peerData.Average(pe => (double)pe.score) : 0;
+                    if (subName.Contains("society") && !isSocietyMember)
+                        return false;
+                    ////else project specific KPIs can also be filtered here if needed by checking subName for certain keywords and validating against teacher's involvement in those projects
+                    return true;
+                }).ToList();
 
-                var confScores = db.KPIScore.Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId).ToList();
+                // 3. Averages
+                var studentAvg = db.StudentEvaluation
+                    .Where(se => se.Enrollment.teacherID == teacherId && se.Enrollment.sessionID == sessionId)
+                    .Select(x => (double?)x.score)
+                    .DefaultIfEmpty()
+                    .Average() ?? 0;
 
-                // 4. Processing Breakdown
+                var peerAvg = db.PeerEvaluation
+                    .Where(pe => pe.evaluateeID == teacherId && pe.PeerEvaluator.sessionID == sessionId)
+                    .Select(x => (double?)x.score)
+                    .DefaultIfEmpty()
+                    .Average() ?? 0;
+
+                var societyAvg = db.SocietyEvaluation
+                    .Where(se => se.EvaluateeId == teacherId && se.SessionId == sessionId)
+                    .Select(x => (double?)x.Score)
+                    .DefaultIfEmpty()
+                    .Average() ?? 0;////same project
+
+                var confScores = db.KPIScore
+                    .Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId)
+                    .ToList();
+
+                // 4. Breakdown
                 var groupedKPIs = activeKPIs.GroupBy(k => new { k.KPIID, k.KPIName });
+
                 var finalBreakdown = new List<object>();
+
                 double totalAchieved = 0;
                 double totalWeight = 0;
 
                 foreach (var kpiGroup in groupedKPIs)
                 {
                     var subDetails = new List<object>();
-                    double kpiGroupAchieved = 0;
-                    double kpiGroupWeight = 0;
+                    double kpiAchieved = 0;
+                    double kpiWeight = 0;
 
                     foreach (var item in kpiGroup)
                     {
-                        // Get individual weight for SubKPI
                         var weightEntry = db.SessionKPIWeight.FirstOrDefault(w =>
-                            w.SessionID == sessionId && w.KPIID == item.KPIID && w.SubKPIID == item.SubKPIID);
+                            w.SessionID == sessionId &&
+                            w.KPIID == item.KPIID &&
+                            w.SubKPIID == item.SubKPIID);
 
                         double weight = weightEntry?.Weight ?? 0;
-                        string subNameLower = (item.SubKPIName ?? "").ToLower();
-                        double multiplier = 0;
-                        double maxScale = 4.0; //  Default max scale
+                        string subName = (item.SubKPIName ?? "").ToLower();
 
-                        // Selection logic
-                        if (subNameLower.Contains("student"))
+                        double multiplier = 0;
+                        double maxScale = 4.0;
+
+                        // ================= SCORE LOGIC =================
+                        if (subName.Contains("student"))
                         {
                             multiplier = studentAvg;
-                            maxScale = 4.0;
                         }
-                        else if (subNameLower.Contains("peer"))
+                        else if (subName.Contains("peer"))
                         {
                             multiplier = peerAvg;
-                            maxScale = 4.0;
                         }
-                        else if (subNameLower.Contains("confidential"))
+                        else if (subName.Contains("society"))
                         {
-                            multiplier = 0; //  Dexie frontend handle karega
-                            maxScale = 4.0;
+                            multiplier = isSocietyMember ? societyAvg : 0;
+                        }
+                        else if (subName.Contains("confidential"))
+                        {
+                            multiplier = 0;
                         }
                         else
                         {
-                            var specificConfScore = confScores
+                            var specificScore = confScores
                                 .Where(cs => cs.empKPIID == item.id)
                                 .Average(cs => (double?)cs.score);
-                            multiplier = specificConfScore ?? 0;
-                            maxScale = 5.0; //  Backend 1 ki tarah Paper/Folder max scale 5
+
+                            multiplier = specificScore ?? 0;
+                            maxScale = 5.0;
                         }
 
-                        // Calculation: (AvgScore / MaxScale) * Weight
                         double achieved = Math.Round((multiplier / maxScale) * weight, 2);
 
                         subDetails.Add(new
@@ -103,34 +143,41 @@ namespace EmpPerAppE.Controllers.performance
                             SubName = item.SubKPIName,
                             SubMax = weight,
                             SubAchieved = achieved,
-                            MaxScale = maxScale, //  Frontend ko pass kar rahe hain
-                            RawScore = multiplier
+                            MaxScale = maxScale,
+                            RawScore = multiplier,
+                            IsSociety = subName.Contains("society") && isSocietyMember
                         });
 
-                        kpiGroupAchieved += achieved;
-                        kpiGroupWeight += weight;
+                        kpiAchieved += achieved;
+                        kpiWeight += weight;
                     }
 
                     finalBreakdown.Add(new
                     {
                         KPIName = kpiGroup.Key.KPIName,
-                        KPIWeight = kpiGroupWeight,
-                        KPIAchieved = Math.Round(kpiGroupAchieved, 2),
+                        KPIWeight = kpiWeight,
+                        KPIAchieved = Math.Round(kpiAchieved, 2),
                         SubDetails = subDetails
                     });
 
-                    totalAchieved += kpiGroupAchieved;
-                    totalWeight += kpiGroupWeight;
+                    totalAchieved += kpiAchieved;
+                    totalWeight += kpiWeight;
                 }
 
-                // 5. Final Combined Response
+                // 5. FINAL SCORE
+                double overallPercentage = totalWeight > 0
+                    ? Math.Round((totalAchieved / totalWeight) * 100, 2)
+                    : 0;
+
+                // 6. RESPONSE
                 return Ok(new
                 {
                     Status = "Success",
                     TeacherName = teacherData?.name,
                     Department = teacherData?.department,
                     SessionName = currentSession.name,
-                    OverallPercentage = totalWeight > 0 ? Math.Round((totalAchieved / totalWeight) * 100, 2) : 0,
+                    IsSocietyMember = isSocietyMember,
+                    OverallPercentage = overallPercentage,
                     Breakdown = finalBreakdown
                 });
             }
