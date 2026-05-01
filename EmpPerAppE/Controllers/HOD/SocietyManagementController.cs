@@ -5,6 +5,7 @@ using System.Linq;
 using System.Web.Http;
 using EmpPerAppE.Models.DTO;
 using System.Data.Entity;
+using static System.Net.WebRequestMethods;
 
 namespace EmpPerAppE.Controllers.HOD
 {
@@ -114,33 +115,76 @@ namespace EmpPerAppE.Controllers.HOD
         }
 
         // 5. ASSIGN CHAIRPERSON (Unique per Society/Session)
+        //[HttpPost]
+        //[Route("AssignTeacher")]
+        //public IHttpActionResult AssignTeacher([FromBody] SocietyAssignmentDTO model)
+        //{
+        //    try
+        //    {
+        //        if (model == null) return BadRequest();
+
+        //        // Remove existing chairperson for this society in this session
+        //        var existing = db.SocietyAssignments.Where(x => x.SocietyId == model.SocietyId && x.SessionId == model.SessionId && x.IsChairperson == true).ToList();
+        //        db.SocietyAssignments.RemoveRange(existing);
+
+        //        db.SocietyAssignments.Add(new SocietyAssignments
+        //        {
+        //            TeacherId = model.TeacherId,
+        //            SocietyId = model.SocietyId,
+        //            SessionId = model.SessionId,
+        //            IsChairperson = true,
+        //            IsMentor = false
+        //        });
+        //        db.SaveChanges();
+        //        return Ok(new { message = "Chairperson assigned" });
+        //    }
+        //    catch (Exception ex) { return InternalServerError(ex); }
+        //}
         [HttpPost]
         [Route("AssignTeacher")]
         public IHttpActionResult AssignTeacher([FromBody] SocietyAssignmentDTO model)
         {
+            // Check if model is null or TeacherId is empty string
+            if (model == null || string.IsNullOrEmpty(model.TeacherId))
+                return BadRequest("Invalid data: Teacher selection is required.");
+
             try
             {
-                if (model == null) return BadRequest();
+                // STEP 1: REMOVE ALL OLD CHAIRPERSONS
+                var oldChairs = db.SocietyAssignments
+                    .Where(x =>
+                        x.SocietyId == model.SocietyId &&
+                        x.SessionId == model.SessionId &&
+                        x.IsChairperson == true)
+                    .ToList();
 
-                // Remove existing chairperson for this society in this session
-                var existing = db.SocietyAssignments.Where(x => x.SocietyId == model.SocietyId && x.SessionId == model.SessionId && x.IsChairperson == true).ToList();
-                db.SocietyAssignments.RemoveRange(existing);
-
-                db.SocietyAssignments.Add(new SocietyAssignments
+                if (oldChairs.Any())
                 {
-                    TeacherId = model.TeacherId,
+                    db.SocietyAssignments.RemoveRange(oldChairs);
+                }
+
+                // STEP 2: ADD NEW CHAIRPERSON
+                var newChair = new SocietyAssignments
+                {
+                    TeacherId = model.TeacherId, // Yeh string accept ho jayegi
                     SocietyId = model.SocietyId,
                     SessionId = model.SessionId,
                     IsChairperson = true,
                     IsMentor = false
-                });
+                };
+
+                db.SocietyAssignments.Add(newChair);
                 db.SaveChanges();
-                return Ok(new { message = "Chairperson assigned" });
+
+                return Ok(new { message = "Chairperson updated successfully" });
             }
-            catch (Exception ex) { return InternalServerError(ex); }
+            catch (Exception ex)
+            {
+                // Database error check karne ke liye
+                return InternalServerError(ex);
+            }
         }
 
-        // 6. ASSIGN MENTORS BULK
         [HttpPost]
         [Route("AssignMentorsBulk")]
         public IHttpActionResult AssignMentorsBulk([FromBody] List<SocietyAssignmentDTO> models)
