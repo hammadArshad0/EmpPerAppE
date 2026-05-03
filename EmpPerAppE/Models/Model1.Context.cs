@@ -25,7 +25,6 @@ namespace EmpPerAppE.Models
             throw new UnintentionalCodeFirstException();
         }
     
-        public DbSet<ClassheldReport> ClassheldReport { get; set; }
         public DbSet<Course> Course { get; set; }
         public DbSet<EmployeeType> EmployeeType { get; set; }
         public DbSet<EmployeSessionKPI> EmployeSessionKPI { get; set; }
@@ -47,5 +46,6 @@ namespace EmpPerAppE.Models
         public DbSet<Societies> Societies { get; set; }
         public DbSet<SocietyAssignments> SocietyAssignments { get; set; }
         public DbSet<SocietyEvaluation> SocietyEvaluation { get; set; }
+        public DbSet<CHR> CHR { get; set; }
     }
 }

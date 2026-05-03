@@ -18,6 +18,7 @@ namespace EmpPerAppE.Models
         {
             this.Enrollment = new HashSet<Enrollment>();
             this.PeerEvaluation = new HashSet<PeerEvaluation>();
+            this.CHR = new HashSet<CHR>();
         }
     
         public string code { get; set; }
@@ -25,5 +26,6 @@ namespace EmpPerAppE.Models
     
         public virtual ICollection<Enrollment> Enrollment { get; set; }
         public virtual ICollection<PeerEvaluation> PeerEvaluation { get; set; }
+        public virtual ICollection<CHR> CHR { get; set; }
     }
 }

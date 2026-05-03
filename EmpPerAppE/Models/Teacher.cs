@@ -21,6 +21,7 @@ namespace EmpPerAppE.Models
             this.PeerEvaluator = new HashSet<PeerEvaluator>();
             this.SocietyEvaluation = new HashSet<SocietyEvaluation>();
             this.SocietyEvaluation1 = new HashSet<SocietyEvaluation>();
+            this.CHR = new HashSet<CHR>();
         }
     
         public string userID { get; set; }
@@ -35,5 +36,6 @@ namespace EmpPerAppE.Models
         public virtual Users Users { get; set; }
         public virtual ICollection<SocietyEvaluation> SocietyEvaluation { get; set; }
         public virtual ICollection<SocietyEvaluation> SocietyEvaluation1 { get; set; }
+        public virtual ICollection<CHR> CHR { get; set; }
     }
 }
