@@ -67,6 +67,7 @@
         <EntityTypeShape EntityType="fypempModel.CHR" Width="1.5" PointX="8.25" PointY="0.75" />
         <AssociationConnector Association="fypempModel.FK__CHR__CourseCode__41B8C09B" />
         <AssociationConnector Association="fypempModel.FK__CHR__TeacherID__42ACE4D4" />
+        <AssociationConnector Association="fypempModel.FK_CHR_Session" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

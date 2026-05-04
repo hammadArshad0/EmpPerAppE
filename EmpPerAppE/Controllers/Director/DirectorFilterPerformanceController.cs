@@ -44,7 +44,7 @@ namespace EmpPerAppE.Controllers.Director
 
         [HttpGet]
         [Route("GetFilteredPerformance")]
-        public IHttpActionResult GetFilteredPerformance(
+   public IHttpActionResult GetFilteredPerformance(
     int? sessionId = null,
     string department = null,
     string courseCode = null)
@@ -127,26 +127,34 @@ namespace EmpPerAppE.Controllers.Director
                             ? societyScores.Average() ?? 0 : 0;
                     }
 
-                    // ✅ CHR Avg — sab teachers ko, Enrollment se session filter
-                    double chrAvg = 0.0;
-                    if (isEnrolledInSession)
+                    // 3. CHR Average Score — Session filter ke saath
+                    var chrAvg = 0.0;
+
+                    // Teacher aur Session ke mutabiq data fetch karna
+                    var chrRawData = db.CHR
+                        .Where(c => c.TeacherID == g.Key.teacherID && c.sessionID == sessionId)
+                        .Select(x => new {
+                            LateIn = x.LateIn ?? 0,
+                            LeftEarly = x.LeftEarly ?? 0
+                        })
+                        .ToList();
+
+                    if (chrRawData.Any())
                     {
-                        var chrRawData = db.CHR
-                            .Where(c => c.TeacherID == g.Key.teacherID)
-                            .Select(x => new { LateIn = x.LateIn ?? 0, LeftEarly = x.LeftEarly ?? 0 })
-                            .ToList();
+                        chrAvg = chrRawData.Select(x => {
+                            // Aapke logic ke mutabiq LateIn aur LeftEarly ka total
+                            int totalPenalty = x.LateIn + x.LeftEarly;
 
-                        chrAvg = chrRawData.Any()
-                            ? chrRawData.Select(x => {
-                                int total = x.LateIn + x.LeftEarly;
-                                if (total >= 10) return 0.0;
-                                if (total >= 6) return 3.0;
-                                if (total >= 1) return 4.0;
-                                return 5.0;
-                            }).Average()
-                            : 0.0;
+                            if (totalPenalty >= 10) return 0.0; // Cancelled/No Score
+                            if (totalPenalty >= 6) return 3.0; // Average
+                            if (totalPenalty >= 1) return 4.0; // Good
+                            return 5.0;                         // Excellent (On Time)
+                        }).Average();
                     }
-
+                    else
+                    {
+                        chrAvg = 0.0; // Agar koi record na mile
+                    }
                     // C. KPIScore table
                     var teacherKpiScores = db.KPIScore
                         .Where(ks => ks.empID == g.Key.teacherID)

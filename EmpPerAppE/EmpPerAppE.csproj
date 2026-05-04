@@ -303,6 +303,7 @@
     <Compile Include="Controllers\student\StudentEvalutionController.cs" />
     <Compile Include="Controllers\student\CourseController.cs" />
     <Compile Include="Controllers\student\StudentController.cs" />
+    <Compile Include="Controllers\Teacher\AcdemicPerformanceTeacherController.cs" />
     <Compile Include="Controllers\Teacher\PeerEvalutionController.cs" />
     <Compile Include="Controllers\Teacher\TeacherController.cs" />
     <Compile Include="Controllers\ValuesController.cs" />

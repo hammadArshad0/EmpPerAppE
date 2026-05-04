@@ -20,6 +20,7 @@
           <Property Name="LeftEarly" Type="int" />
           <Property Name="Remarks" Type="nvarchar" MaxLength="500" />
           <Property Name="ClassDate" Type="datetime" />
+          <Property Name="sessionID" Type="int" />
         </EntityType>
         <EntityType Name="Course">
           <Key>
@@ -583,6 +584,18 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_CHR_Session">
+          <End Role="Session" Type="Self.Session" Multiplicity="0..1" />
+          <End Role="CHR" Type="Self.CHR" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Session">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="CHR">
+              <PropertyRef Name="sessionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <Association Name="FK_Questions_Questionare">
           <End Role="Questionare" Type="Self.Questionare" Multiplicity="1" />
           <End Role="Questions" Type="Self.Questions" Multiplicity="*" />
@@ -814,6 +827,10 @@
             <End Role="Users" EntitySet="Users" />
             <End Role="Teacher" EntitySet="Teacher" />
           </AssociationSet>
+          <AssociationSet Name="FK_CHR_Session" Association="Self.FK_CHR_Session">
+            <End Role="Session" EntitySet="Session" />
+            <End Role="CHR" EntitySet="CHR" />
+          </AssociationSet>
           <AssociationSet Name="FK_Questions_Questionare" Association="Self.FK_Questions_Questionare">
             <End Role="Questionare" EntitySet="Questionare" />
             <End Role="Questions" EntitySet="Questions" />
@@ -972,6 +989,7 @@
           <NavigationProperty Name="Student" Relationship="Self.FK__Student__admissi__5FB337D6" FromRole="Session" ToRole="Student" />
           <NavigationProperty Name="SocietyAssignments" Relationship="fypempModel.FK__SocietyAs__Sessi__2057CCD0" FromRole="Session" ToRole="SocietyAssignments" />
           <NavigationProperty Name="SocietyEvaluation" Relationship="fypempModel.FK_SocietyEvaluation_Session" FromRole="Session" ToRole="SocietyEvaluation" />
+          <NavigationProperty Name="CHR" Relationship="fypempModel.FK_CHR_Session" FromRole="Session" ToRole="CHR" />
         </EntityType>
         <EntityType Name="SessionKPIWeight">
           <Key>
@@ -1547,6 +1565,10 @@
             <End Role="Teacher" EntitySet="Teacher" />
             <End Role="CHR" EntitySet="CHR" />
           </AssociationSet>
+          <AssociationSet Name="FK_CHR_Session" Association="fypempModel.FK_CHR_Session">
+            <End Role="Session" EntitySet="Session" />
+            <End Role="CHR" EntitySet="CHR" />
+          </AssociationSet>
         </EntityContainer>
         <Association Name="FK__KPI__KPI_Employe__14270015">
           <End Type="fypempModel.EmployeeType" Role="EmployeeType" Multiplicity="0..1" />
@@ -1772,6 +1794,8 @@
           <Property Name="ClassDate" Type="DateTime" Precision="3" />
           <NavigationProperty Name="Course" Relationship="fypempModel.FK__CHR__CourseCode__41B8C09B" FromRole="CHR" ToRole="Course" />
           <NavigationProperty Name="Teacher" Relationship="fypempModel.FK__CHR__TeacherID__42ACE4D4" FromRole="CHR" ToRole="Teacher" />
+          <Property Name="sessionID" Type="Int32" />
+          <NavigationProperty Name="Session" Relationship="fypempModel.FK_CHR_Session" FromRole="CHR" ToRole="Session" />
         </EntityType>
         <Association Name="FK__CHR__CourseCode__41B8C09B">
           <End Type="fypempModel.Course" Role="Course" Multiplicity="0..1" />
@@ -1794,6 +1818,18 @@
             </Principal>
             <Dependent Role="CHR">
               <PropertyRef Name="TeacherID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_CHR_Session">
+          <End Type="fypempModel.Session" Role="Session" Multiplicity="0..1" />
+          <End Type="fypempModel.CHR" Role="CHR" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Session">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="CHR">
+              <PropertyRef Name="sessionID" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -2017,6 +2053,7 @@
           <EntitySetMapping Name="CHR">
             <EntityTypeMapping TypeName="fypempModel.CHR">
               <MappingFragment StoreEntitySet="CHR">
+                <ScalarProperty Name="sessionID" ColumnName="sessionID" />
                 <ScalarProperty Name="ClassDate" ColumnName="ClassDate" />
                 <ScalarProperty Name="Remarks" ColumnName="Remarks" />
                 <ScalarProperty Name="LeftEarly" ColumnName="LeftEarly" />

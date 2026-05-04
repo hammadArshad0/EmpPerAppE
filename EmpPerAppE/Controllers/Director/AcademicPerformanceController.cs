@@ -323,24 +323,24 @@ namespace EmpPerAppE.Controllers.Director
             var isEnrolled = db.Enrollment
                 .Any(e => e.teacherID == teacherId && e.sessionID == sessionId);
 
-            double chrAvg = 0.0;
-            if (isEnrolled)
-            {
-                var chrRawData = db.CHR
-                    .Where(c => c.TeacherID == teacherId)
-                    .Select(x => new { LateIn = x.LateIn ?? 0, LeftEarly = x.LeftEarly ?? 0 })
-                    .ToList();
+            // 3. CHR Average Score — Session filter ke saath
+            // Sirf us session ki CHR records consider hongi
+            var chrAvg = 0.0;
 
-                chrAvg = chrRawData.Any()
-                    ? chrRawData.Select(x => {
-                        int total = x.LateIn + x.LeftEarly;
-                        if (total >= 10) return 0.0;
-                        if (total >= 6) return 3.0;
-                        if (total >= 1) return 4.0;
-                        return 5.0;
-                    }).Average()
-                    : 0.0;
-            }
+            var chrRawData = db.CHR
+                .Where(c => c.TeacherID == teacherId && c.sessionID == sessionId)
+                .Select(x => new { LateIn = x.LateIn ?? 0, LeftEarly = x.LeftEarly ?? 0 })
+                .ToList();
+
+            chrAvg = chrRawData.Any()
+                ? chrRawData.Select(x => {
+                    int total = x.LateIn + x.LeftEarly;
+                    if (total >= 10) return 0.0;
+                    if (total >= 6) return 3.0;
+                    if (total >= 1) return 4.0;
+                    return 5.0;
+                }).Average()
+                : 0.0;
 
             // CHR ko 10 scale pe convert karo (baaki scores ki tarah)
             double chrPerc = Math.Round((chrAvg / 5.0) * SCALE, 2);

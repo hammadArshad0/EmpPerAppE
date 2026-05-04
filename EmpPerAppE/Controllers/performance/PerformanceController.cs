@@ -78,33 +78,24 @@ namespace EmpPerAppE.Controllers.performance
                     .DefaultIfEmpty()
                     .Average() ?? 0;////same project
 
+                // 3. CHR Average Score — Session filter ke saath
+                // Sirf us session ki CHR records consider hongi
+                var chrAvg = 0.0;
 
-                // 3. Averages ke saath CHR average bhi nikalo
-                // ── CHR Average Score (LateIn + LeftEarly dono consider) ──
-                //  Fix - Enrollment se session filter
-                var enrolledTeacherInSession = db.Enrollment
-                    .Any(e => e.teacherID == teacherId && e.sessionID == sessionId);
+                var chrRawData = db.CHR
+                    .Where(c => c.TeacherID == teacherId && c.sessionID == sessionId)
+                    .Select(x => new { LateIn = x.LateIn ?? 0, LeftEarly = x.LeftEarly ?? 0 })
+                    .ToList();
 
-                double chrAvg = 0.0;
-
-                if (enrolledTeacherInSession)
-                {
-                    var chrRawData = db.CHR
-                        .Where(c => c.TeacherID == teacherId)
-                        .Select(x => new { LateIn = x.LateIn ?? 0, LeftEarly = x.LeftEarly ?? 0 })
-                        .ToList();
-
-                    chrAvg = chrRawData.Any()
-                        ? chrRawData.Select(x => {
-                            int total = x.LateIn + x.LeftEarly;
-                            if (total >= 10) return 0.0;
-                            if (total >= 6) return 3.0;
-                            if (total >= 1) return 4.0;
-                            return 5.0;
-                        }).Average()
-                        : 0.0;
-                }
-
+                chrAvg = chrRawData.Any()
+                    ? chrRawData.Select(x => {
+                        int total = x.LateIn + x.LeftEarly;
+                        if (total >= 10) return 0.0;
+                        if (total >= 6) return 3.0;
+                        if (total >= 1) return 4.0;
+                        return 5.0;
+                    }).Average()
+                    : 0.0;
 
                 var confScores = db.KPIScore
                     .Where(ks => ks.empID == teacherId && ks.EmployeSessionKPI.SessionID == sessionId)

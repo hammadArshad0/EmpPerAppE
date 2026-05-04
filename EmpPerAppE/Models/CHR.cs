@@ -25,8 +25,10 @@ namespace EmpPerAppE.Models
         public Nullable<int> LeftEarly { get; set; }
         public string Remarks { get; set; }
         public Nullable<System.DateTime> ClassDate { get; set; }
+        public Nullable<int> sessionID { get; set; }
     
         public virtual Course Course { get; set; }
         public virtual Teacher Teacher { get; set; }
+        public virtual Session Session { get; set; }
     }
 }

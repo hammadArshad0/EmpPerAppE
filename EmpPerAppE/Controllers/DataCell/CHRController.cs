@@ -32,9 +32,32 @@ namespace EmpPerAppE.Controllers.DataCell
             return string.IsNullOrEmpty(originalStatus) ? "Present" : originalStatus;
         }
 
+        // ── 0. Get All Sessions (for dropdown) ───────────────────
+        [HttpGet]
+        [Route("GetSessions")]
+        public IHttpActionResult GetSessions()
+        {
+            try
+            {
+                var sessions = db.Session
+                    .OrderByDescending(s => s.id)
+                    .Select(s => new
+                    {
+                        s.id,
+                        s.name  // apne model ka actual column name use karo
+                        // agar aur columns hain jaise StartDate/EndDate to woh bhi add kar sakte ho
+                    })
+                    .ToList();
 
+                return Ok(sessions);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(new Exception("Sessions Error: " + ex.Message));
+            }
+        }
 
-        // ── 1. Excel Upload ──────────────────────────────────────
+        // ── 1. Excel Upload (Session Required) ──────────────────
         [HttpPost]
         [Route("upload")]
         public IHttpActionResult UploadCHR()
@@ -42,6 +65,17 @@ namespace EmpPerAppE.Controllers.DataCell
             try
             {
                 var httpRequest = HttpContext.Current.Request;
+
+                // ── Session ID — form data se lo ──
+                string sessionIdStr = httpRequest.Form["sessionID"];
+                if (string.IsNullOrEmpty(sessionIdStr) || !int.TryParse(sessionIdStr, out int sessionID))
+                    return BadRequest("Session ID required. Please select a session before uploading.");
+
+                // Validate: session exist karti hai?
+                var sessionExists = db.Session.Any(s => s.id == sessionID);
+                if (!sessionExists)
+                    return BadRequest("Selected session does not exist.");
+
                 if (httpRequest.Files.Count == 0)
                     return BadRequest("No file uploaded.");
 
@@ -62,9 +96,7 @@ namespace EmpPerAppE.Controllers.DataCell
                     int maxIdBefore = db.CHR.Any() ? db.CHR.Max(x => x.id) : 0;
                     int insertedCount = 0;
 
-                    // ── Unique batch timestamp — har upload ka alag waqt ──
-                    // Milliseconds nahi — pure seconds tak round karo
-                    // Phir us batch ki ek fixed time banao
+                    // ── Unique batch timestamp ──
                     DateTime uploadTime = new DateTime(
                         DateTime.Now.Year,
                         DateTime.Now.Month,
@@ -72,11 +104,11 @@ namespace EmpPerAppE.Controllers.DataCell
                         DateTime.Now.Hour,
                         DateTime.Now.Minute,
                         DateTime.Now.Second,
-                        0  // milliseconds = 0
+                        0
                     );
 
-                    // Agar same second mein dobara upload ho to 1 second aage karo
-                    bool conflict = db.CHR.Any(x => x.ClassDate == uploadTime);
+                    // Same second conflict avoid karo
+                    bool conflict = db.CHR.Any(x => x.ClassDate == uploadTime && x.sessionID == sessionID);
                     if (conflict)
                         uploadTime = uploadTime.AddSeconds(1);
 
@@ -96,6 +128,7 @@ namespace EmpPerAppE.Controllers.DataCell
 
                         db.CHR.Add(new CHR
                         {
+                            sessionID = sessionID,                    // ← Session link
                             CourseCode = getVal("CourseCode"),
                             TeacherID = getVal("TeacherID"),
                             TeacherName = getVal("TeacherName"),
@@ -105,19 +138,24 @@ namespace EmpPerAppE.Controllers.DataCell
                             Remarks = getVal("Remarks"),
                             LateIn = int.TryParse(getVal("LateIn"), out int late) ? late : 0,
                             LeftEarly = int.TryParse(getVal("LeftEarly"), out int left) ? left : 0,
-                            ClassDate = uploadTime  // sab rows ko same fixed time
+                            ClassDate = uploadTime
                         });
                         insertedCount++;
                     }
 
                     db.SaveChanges();
 
+                    // Session name bhi return karo
+                    var session = db.Session.FirstOrDefault(s => s.id == sessionID);
+
                     return Ok(new
                     {
                         Message = "Successfully Uploaded",
                         Count = insertedCount,
                         BatchStartId = maxIdBefore + 1,
-                        Date = uploadTime.ToString("dd MMM yyyy HH:mm:ss")
+                        Date = uploadTime.ToString("dd MMM yyyy HH:mm:ss"),
+                        SessionID = sessionID,
+                        SessionName = session != null ? session.name : ""
                     });
                 }
             }
@@ -127,33 +165,45 @@ namespace EmpPerAppE.Controllers.DataCell
                     new Exception("Error during upload: " + ex.Message));
             }
         }
-        // ── 2. HOD Dashboard ─────────────────────────────────────
+
+        // ── 2. HOD Dashboard (Session Filter Optional) ───────────
         [HttpGet]
         [Route("GetHODDashboard")]
-        public IHttpActionResult GetHODDashboard()
+        public IHttpActionResult GetHODDashboard(int? sessionID = null)
         {
             try
             {
-                var allRows = db.CHR.OrderBy(c => c.id).ToList();
+                // sessionID diya hai to filter karo, warna sab dikhao
+                var query = db.CHR.AsQueryable();
+                if (sessionID.HasValue)
+                    query = query.Where(c => c.sessionID == sessionID.Value);
+
+                var allRows = query.OrderBy(c => c.id).ToList();
                 if (!allRows.Any()) return Ok(new List<object>());
 
                 var batches = allRows
-                    .GroupBy(c => c.ClassDate)
+                    .GroupBy(c => new { c.ClassDate, c.sessionID })   // session + date se group
                     .Select(g =>
                     {
-                        var rows  = g.OrderBy(x => x.id).ToList();
+                        var rows = g.OrderBy(x => x.id).ToList();
                         var first = rows.First();
+
+                        // Session name join
+                        var session = db.Session.FirstOrDefault(s => s.id == first.sessionID);
+
                         return new
                         {
-                            ReportId         = first.id,
-                            ReportDate       = first.ClassDate,
-                            Department       = first.Discipline ?? "N/A",
-                            TotalClasses     = rows.Count,
-                            LateTeachers     = rows.Count(x => (x.LateIn    ?? 0) > 0),
-                            EarlyLeavers     = rows.Count(x => (x.LeftEarly ?? 0) > 0),
-                            CancelledClasses = rows.Count(x => (x.LateIn    ?? 0) >= 10),
-                            AvgScore         = rows.Average(x =>
-                                                (double)CalculateScore(x.LateIn))
+                            ReportId = first.id,
+                            ReportDate = first.ClassDate,
+                            Department = first.Discipline ?? "N/A",
+                            SessionID = first.sessionID,
+                            SessionName = session != null ? session.name : "N/A",
+                            TotalClasses = rows.Count,
+                            LateTeachers = rows.Count(x => (x.LateIn ?? 0) > 0),
+                            EarlyLeavers = rows.Count(x => (x.LeftEarly ?? 0) > 0),
+                            CancelledClasses = rows.Count(x => (x.LateIn ?? 0) >= 10),
+                            AvgScore = rows.Average(x =>
+                                               (double)CalculateScore(x.LateIn))
                         };
                     })
                     .OrderByDescending(x => x.ReportId)
@@ -178,9 +228,11 @@ namespace EmpPerAppE.Controllers.DataCell
                 if (anchor == null) return NotFound();
 
                 DateTime? batchDate = anchor.ClassDate;
+                int? batchSession = anchor.sessionID;
 
+                // Same batch = same ClassDate + same sessionID
                 var data = db.CHR
-                    .Where(c => c.ClassDate == batchDate)
+                    .Where(c => c.ClassDate == batchDate && c.sessionID == batchSession)
                     .OrderBy(c => c.id)
                     .ToList()
                     .Select(c => new
@@ -192,7 +244,8 @@ namespace EmpPerAppE.Controllers.DataCell
                         c.Discipline,
                         c.Venue,
                         c.ClassDate,
-                        LateIn    = c.LateIn    ?? 0,
+                        c.sessionID,
+                        LateIn = c.LateIn ?? 0,
                         LeftEarly = c.LeftEarly ?? 0,
                         c.Remarks,
                         Score = CalculateScore(c.LateIn, c.LeftEarly),
@@ -219,8 +272,8 @@ namespace EmpPerAppE.Controllers.DataCell
                 var row = db.CHR.FirstOrDefault(c => c.id == id);
                 if (row == null) return NotFound();
 
-                row.Remarks   = dto.Remarks;
-                row.LateIn    = dto.LateIn;
+                row.Remarks = dto.Remarks;
+                row.LateIn = dto.LateIn;
                 row.LeftEarly = dto.LeftEarly;
 
                 db.SaveChanges();
@@ -234,8 +287,7 @@ namespace EmpPerAppE.Controllers.DataCell
             }
             catch (Exception ex)
             {
-                return InternalServerError(
-                    new Exception("Edit Error: " + ex.Message));
+                return InternalServerError(new Exception("Edit Error: " + ex.Message));
             }
         }
 
@@ -255,8 +307,7 @@ namespace EmpPerAppE.Controllers.DataCell
             }
             catch (Exception ex)
             {
-                return InternalServerError(
-                    new Exception("Delete Error: " + ex.Message));
+                return InternalServerError(new Exception("Delete Error: " + ex.Message));
             }
         }
 
@@ -271,7 +322,12 @@ namespace EmpPerAppE.Controllers.DataCell
                 if (anchor == null) return NotFound();
 
                 DateTime? batchDate = anchor.ClassDate;
-                var batch = db.CHR.Where(c => c.ClassDate == batchDate).ToList();
+                int? batchSession = anchor.sessionID;
+
+                // Same session + same date = ek batch
+                var batch = db.CHR
+                    .Where(c => c.ClassDate == batchDate && c.sessionID == batchSession)
+                    .ToList();
 
                 db.CHR.RemoveRange(batch);
                 db.SaveChanges();
@@ -279,23 +335,25 @@ namespace EmpPerAppE.Controllers.DataCell
             }
             catch (Exception ex)
             {
-                return InternalServerError(
-                    new Exception("Delete Batch Error: " + ex.Message));
+                return InternalServerError(new Exception("Delete Batch Error: " + ex.Message));
             }
         }
 
-        // ── 7. Teacher Report ────────────────────────────────────
+        // ── 7. Teacher Report (Session Filter Optional) ──────────
         [HttpGet]
         [Route("GetTeacherReport")]
-        public IHttpActionResult GetTeacherReport(string teacherId)
+        public IHttpActionResult GetTeacherReport(string teacherId, int? sessionID = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(teacherId))
                     return BadRequest("Teacher ID required.");
 
-                var data = db.CHR
-                    .Where(c => c.TeacherID == teacherId)
+                var query = db.CHR.Where(c => c.TeacherID == teacherId);
+                if (sessionID.HasValue)
+                    query = query.Where(c => c.sessionID == sessionID.Value);
+
+                var data = query
                     .OrderByDescending(c => c.id)
                     .ToList()
                     .Select(c => new
@@ -306,7 +364,8 @@ namespace EmpPerAppE.Controllers.DataCell
                         c.Discipline,
                         c.Venue,
                         c.ClassDate,
-                        LateIn    = c.LateIn    ?? 0,
+                        c.sessionID,
+                        LateIn = c.LateIn ?? 0,
                         LeftEarly = c.LeftEarly ?? 0,
                         c.Remarks,
                         Score = CalculateScore(c.LateIn, c.LeftEarly),
@@ -319,8 +378,7 @@ namespace EmpPerAppE.Controllers.DataCell
             }
             catch (Exception ex)
             {
-                return InternalServerError(
-                    new Exception("Backend Error: " + ex.Message));
+                return InternalServerError(new Exception("Backend Error: " + ex.Message));
             }
         }
     }
@@ -328,8 +386,8 @@ namespace EmpPerAppE.Controllers.DataCell
     // ── DTO ───────────────────────────────────────────────────────
     public class EditRowDto
     {
-        public string Remarks   { get; set; }
-        public int    LateIn    { get; set; }
-        public int    LeftEarly { get; set; }
+        public string Remarks { get; set; }
+        public int LateIn { get; set; }
+        public int LeftEarly { get; set; }
     }
 }
