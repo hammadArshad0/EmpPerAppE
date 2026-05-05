@@ -159,26 +159,48 @@ namespace EmpPerAppE.Controllers.Teacher
         [Route("SubmitEvaluation")]
         public IHttpActionResult SubmitEvaluation([FromBody] PeerSubmissionModel model)
         {
-            if (model == null || model.Answers == null) return BadRequest("Invalid Data");
+            if (model == null || model.Answers == null)
+                return BadRequest("Invalid Data");
 
             try
             {
                 string normEvalId = model.EvaluatorUserId.Trim().ToLower();
-                var sessionEvaluator = db.PeerEvaluator.FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == normEvalId);
-                var teacher = db.Teacher.FirstOrDefault(t => t.userID.Trim().ToLower() == normEvalId);
 
-                if (sessionEvaluator == null && (teacher == null || teacher.isPermanentEvaluator != 1))
+                var teacher = db.Teacher
+                    .FirstOrDefault(t => t.userID.Trim().ToLower() == normEvalId);
+                bool isPerm = teacher?.isPermanentEvaluator == 1;
+
+                // PeerEvaluator table mein entry dhundo
+                var sessionEvaluator = db.PeerEvaluator
+                    .FirstOrDefault(pe => pe.teacherID.Trim().ToLower() == normEvalId);
+
+                if (!isPerm && sessionEvaluator == null)
+                    return BadRequest("Unauthorized: Not an assigned evaluator.");
+
+                // ── KEY FIX ──
+                // Permanent hai lekin PeerEvaluator table mein entry nahi
+                // → pehle entry banao, phir id use karo
+                if (sessionEvaluator == null)
                 {
-                    return BadRequest("Unauthorized: You are not an assigned evaluator.");
+                    var activeSession = db.Session
+                        .OrderByDescending(s => s.id)
+                        .FirstOrDefault();
+
+                    sessionEvaluator = new PeerEvaluator
+                    {
+                        teacherID = teacher.userID,
+                        sessionID = activeSession?.id
+                    };
+                    db.PeerEvaluator.Add(sessionEvaluator);
+                    db.SaveChanges(); // ← pehle save karo taake id mile
                 }
 
+                // Ab evaluatorID hamesha valid hoga — NULL kabhi nahi aayega
                 foreach (var ans in model.Answers)
                 {
                     db.PeerEvaluation.Add(new PeerEvaluation
                     {
-                        // Agar PeerEvaluator table mein entry nahi (Permanent case), 
-                        // toh evaluatorID null jayega. Ensure your DB allows NULL for this FK.
-                        evaluatorID = sessionEvaluator?.id,
+                        evaluatorID = sessionEvaluator.id,  // ✅ guaranteed value
                         evaluateeID = model.EvaluateeId,
                         questionID = ans.QuestionId,
                         courseCode = model.CourseCode,

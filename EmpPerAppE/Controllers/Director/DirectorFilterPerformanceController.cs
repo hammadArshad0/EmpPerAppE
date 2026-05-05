@@ -44,10 +44,10 @@ namespace EmpPerAppE.Controllers.Director
 
         [HttpGet]
         [Route("GetFilteredPerformance")]
-        public IHttpActionResult GetFilteredPerformance(
-            int? sessionId = null,
-            string department = null,
-            string courseCode = null)
+   public IHttpActionResult GetFilteredPerformance(
+    int? sessionId = null,
+    string department = null,
+    string courseCode = null)
         {
             try
             {
@@ -93,6 +93,14 @@ namespace EmpPerAppE.Controllers.Director
 
                     var enrollmentIds = g.Select(x => x.e.id).Cast<int>().ToList();
 
+                    // ✅ Society Check — same as performance controller
+                    var isSocietyMember = db.SocietyAssignments
+                        .Any(sa => sa.TeacherId == g.Key.teacherID && sa.SessionId == activeSessionId);
+
+                    // ✅ CHR Check — Enrollment se session verify
+                    var isEnrolledInSession = db.Enrollment
+                        .Any(e => e.teacherID == g.Key.teacherID && e.sessionID == activeSessionId);
+
                     // A. Student Avg (0-4 scale)
                     var studentScores = db.StudentEvaluation
                         .Where(se => enrollmentIds.Contains((int)se.enrollmentID))
@@ -108,7 +116,46 @@ namespace EmpPerAppE.Controllers.Director
                     double peerAvg = peerScores.Any()
                         ? peerScores.Average() ?? 0 : 0;
 
-                    // C. KPIScore table — Paper/Folder (0-5 scale)
+                    // ✅ Society Avg — sirf tab calculate karo jab member ho
+                    double societyAvg = 0;
+                    if (isSocietyMember)
+                    {
+                        var societyScores = db.SocietyEvaluation
+                            .Where(se => se.EvaluateeId == g.Key.teacherID && se.SessionId == activeSessionId)
+                            .Select(x => (double?)x.Score).ToList();
+                        societyAvg = societyScores.Any()
+                            ? societyScores.Average() ?? 0 : 0;
+                    }
+
+                    // 3. CHR Average Score — Session filter ke saath
+                    var chrAvg = 0.0;
+
+                    // Teacher aur Session ke mutabiq data fetch karna
+                    var chrRawData = db.CHR
+                        .Where(c => c.TeacherID == g.Key.teacherID && c.sessionID == sessionId)
+                        .Select(x => new {
+                            LateIn = x.LateIn ?? 0,
+                            LeftEarly = x.LeftEarly ?? 0
+                        })
+                        .ToList();
+
+                    if (chrRawData.Any())
+                    {
+                        chrAvg = chrRawData.Select(x => {
+                            // Aapke logic ke mutabiq LateIn aur LeftEarly ka total
+                            int totalPenalty = x.LateIn + x.LeftEarly;
+
+                            if (totalPenalty >= 10) return 0.0; // Cancelled/No Score
+                            if (totalPenalty >= 6) return 3.0; // Average
+                            if (totalPenalty >= 1) return 4.0; // Good
+                            return 5.0;                         // Excellent (On Time)
+                        }).Average();
+                    }
+                    else
+                    {
+                        chrAvg = 0.0; // Agar koi record na mile
+                    }
+                    // C. KPIScore table
                     var teacherKpiScores = db.KPIScore
                         .Where(ks => ks.empID == g.Key.teacherID)
                         .ToList();
@@ -121,36 +168,45 @@ namespace EmpPerAppE.Controllers.Director
                     {
                         string subNameLower = (kpi.SubKPIName ?? "").ToLower();
                         double multiplier = 0;
-                        double maxScale = 4.0; // default
+                        double maxScale = 4.0;
 
-                        if (subNameLower.Contains("student"))
+                        // ✅ Society KPI — member nahi toh skip karo
+                        if (subNameLower.Contains("society"))
                         {
-                            multiplier = studentAvg; // 0-4 scale
+                            if (!isSocietyMember) continue; // ✅ skip — weight bhi nahi ayegi
+                            multiplier = societyAvg;
+                            maxScale = 4.0;
+                        }
+                        else if (subNameLower.Contains("student"))
+                        {
+                            multiplier = studentAvg;
                             maxScale = 4.0;
                         }
                         else if (subNameLower.Contains("peer"))
                         {
-                            multiplier = peerAvg; // 0-4 scale
+                            multiplier = peerAvg;
                             maxScale = 4.0;
                         }
                         else if (subNameLower.Contains("confidential"))
                         {
-                            // ✅ Dexie only — backend 0 bheje
-                            // Frontend Dexie avg se replace karega
                             multiplier = 0;
                             maxScale = 4.0;
                         }
+                        // ✅ CHR — sab teachers ko show ho
+                        else if (subNameLower.Contains("chr") || subNameLower.Contains("class held report"))
+                        {
+                            multiplier = chrAvg;
+                            maxScale = 5.0;
+                        }
                         else
                         {
-                            // ✅ Paper/Folder — KPIScore table (0-5 scale)
                             var specificScore = teacherKpiScores
                                 .FirstOrDefault(ts => ts.empKPIID == kpi.id);
                             multiplier = specificScore != null
                                 ? (double)specificScore.score : 0;
-                            maxScale = 5.0; // ✅ KPIScore max scale = 5
+                            maxScale = 5.0;
                         }
 
-                        // ✅ Scale-aware formula
                         double achieved = (multiplier / maxScale) * kpi.Weight;
                         totalAchieved += achieved;
                         totalWeight += kpi.Weight;
@@ -160,7 +216,7 @@ namespace EmpPerAppE.Controllers.Director
                             SubName = kpi.SubKPIName,
                             Weight = kpi.Weight,
                             Score = multiplier,
-                            MaxScale = maxScale   // ✅ Frontend ko bhejo
+                            MaxScale = maxScale
                         });
                     }
 
@@ -174,8 +230,10 @@ namespace EmpPerAppE.Controllers.Director
                         TeacherName = g.Key.name,
                         CourseCode = g.Key.courseCode,
                         Department = g.Key.department,
+                        IsSocietyMember = isSocietyMember,   // ✅ frontend ko bhi bhejo
                         StudentPercentage = Math.Round((studentAvg / 4.0) * 100, 2),
                         PeerPercentage = Math.Round((peerAvg / 4.0) * 100, 2),
+                        ChrAvgScore = Math.Round(chrAvg, 2),  // ✅ frontend ko bhi bhejo
                         KPIWeights = kpiWeightsList,
                         OverallPercentage = overallPerc
                     };

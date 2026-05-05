@@ -16,28 +16,60 @@ namespace EmpPerAppE.Controllers.Director
         fypempEntities db = new fypempEntities();
 
         // 1. Get All Emails - List dikhane ke liye
+        //[HttpGet]
+        //[Route("getall")]
+        //public IHttpActionResult GetAllEmails()
+        //{
+        //    var emails = db.Email.OrderByDescending(x => x.id).ToList();
+        //    return Ok(emails);
+        //}
         [HttpGet]
         [Route("getall")]
         public IHttpActionResult GetAllEmails()
         {
-            var emails = db.Email.OrderByDescending(x => x.id).ToList();
+            var emails = db.Email
+                .Select(x => new
+                {
+                    x.id,
+                    x.mail,
+                    x.isActive
+                })
+                .OrderByDescending(x => x.id)
+                .ToList();
+
             return Ok(emails);
         }
 
         // 2. Add New Email - Nayi email save karne ke liye
+        //[HttpPost]
+        //[Route("add")]
+        //public IHttpActionResult AddEmail(Email model)
+        //{
+        //    if (model == null || string.IsNullOrEmpty(model.mail))
+        //        return BadRequest("Email address is required.");
+
+        //    model.isActive = false; // By default inactive rakhein
+        //    db.Email.Add(model);
+        //    db.SaveChanges();
+
+        //    return Ok(new { message = "Email added successfully", data = model });
+        //}
+
         [HttpPost]
         [Route("add")]
         public IHttpActionResult AddEmail(Email model)
         {
-            if (model == null || string.IsNullOrEmpty(model.mail))
-                return BadRequest("Email address is required.");
+            if (model == null || string.IsNullOrEmpty(model.mail) || string.IsNullOrEmpty(model.password))
+                return BadRequest("Email and App Password are required.");
 
-            model.isActive = false; // By default inactive rakhein
+            model.isActive = false;
+
             db.Email.Add(model);
             db.SaveChanges();
 
-            return Ok(new { message = "Email added successfully", data = model });
+            return Ok(model);
         }
+
 
         // 3. Activate Email (Toggle Logic) - Aik ko active karein baaki sab ko inactive
         [HttpPut]
@@ -118,5 +150,109 @@ namespace EmpPerAppE.Controllers.Director
 
             return Ok(new { message = "Email updated successfully", data = emailToUpdate });
         }
+
+
+
+
+        [HttpPost]
+        [Route("get-evaluations")]
+        public IHttpActionResult GetEvaluations([FromBody] Email request)
+        {
+            try
+            {
+                var emailRecord = db.Email.FirstOrDefault(e => e.mail == request.mail);
+                if (emailRecord == null)
+                    return BadRequest("Email not found");
+
+                var evaluations = new List<object>();
+
+                using (var client = new MailKit.Net.Imap.ImapClient())
+                {
+                    // ✅ SSL certificate ignore karo (common error)
+                    client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+                    client.Connect("imap.gmail.com", 993, true);
+                    client.Authenticate(emailRecord.mail, emailRecord.password);
+
+                    var inbox = client.Inbox;
+                    inbox.Open(MailKit.FolderAccess.ReadOnly);
+
+                    // ✅ Sirf last 50 emails dekho - saari nahi
+                    var allUids = inbox.Search(MailKit.Search.SearchQuery.All);
+                    var recentUids = allUids.Reverse().Take(50).ToList();
+
+                    foreach (var uid in recentUids)
+                    {
+                        var message = inbox.GetMessage(uid);
+                        var body = message.TextBody ?? message.HtmlBody;
+
+                        if (string.IsNullOrEmpty(body)) continue;
+
+                        var start = body.IndexOf("START_EVAL");
+                        var end = body.IndexOf("END_EVAL");
+
+                        if (start == -1 || end == -1 || end <= start) continue;
+
+                        try
+                        {
+                            var json = body.Substring(start + 10, end - (start + 10)).Trim();
+                            var parsed = Newtonsoft.Json.Linq.JObject.Parse(json);
+
+                            var studentNode = parsed["Student"] ?? parsed["student"];
+                            var teacherEvalsNode = parsed["TeacherEvaluations"] ?? parsed["teacherEvaluations"];
+
+                            if (teacherEvalsNode == null) continue;
+
+                            foreach (var te in teacherEvalsNode)
+                            {
+                                var teacher = te["Teacher"] ?? te["teacher"];
+                                var course = te["Course"] ?? te["course"];
+                                var evals = te["Evaluations"] ?? te["evaluations"];
+
+                                evaluations.Add(new
+                                {
+                                    studentId = studentNode?["ID"]?.ToString() ?? studentNode?["id"]?.ToString() ?? "N/A",
+                                    studentName = studentNode?["Name"]?.ToString() ?? studentNode?["name"]?.ToString() ?? "N/A",
+                                    teacherId = teacher?["ID"]?.ToString() ?? teacher?["id"]?.ToString() ?? "N/A",
+                                    teacherName = teacher?["Name"]?.ToString() ?? teacher?["name"]?.ToString() ?? "N/A",
+                                    session = parsed["Session"]?.ToString() ?? parsed["session"]?.ToString() ?? "N/A",
+                                    subjectCode = course?["Code"]?.ToString() ?? course?["code"]?.ToString() ?? "N/A",
+                                    subjectTitle = course?["Title"]?.ToString() ?? course?["title"]?.ToString() ?? "N/A",
+                                    submittedOn = message.Date.DateTime,
+                                    evaluation = evals
+                                });
+                            }
+                        }
+                        catch (Exception parseEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine("PARSE ERROR: " + parseEx.Message);
+                            continue;
+                        }
+                    }
+
+                    client.Disconnect(true);
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    count = evaluations.Count,
+                    data = evaluations
+                });
+            }
+            catch (Exception ex)
+            {
+                // ✅ Full error message return karo
+                return Ok(new
+                {
+                    success = false,
+                    error = ex.Message,
+                    detail = ex.InnerException?.Message ?? "No inner exception"
+                });
+            }
+        }
     }
-}
+    
+
+        }
+    

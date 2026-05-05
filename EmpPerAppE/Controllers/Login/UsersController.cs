@@ -115,7 +115,7 @@ namespace EmpPerAppE.Controllers.Login
                 }
                 else // HOD or Admin
                 {
-                    fullName = userRecord.role == "HOD" ? "Department Head" : "Administrator";
+                    fullName = userRecord.role == "HOD" ? "Dr.Munir" : "Dr.Jamil Sawar";
                     if (globalLatestSession != null)
                     {
                         currentSessionId = globalLatestSession.id;

@@ -95,90 +95,41 @@ namespace EmpPerAppE.Controllers.student
 
         //[HttpPost]
         //[Route("GenerateAndEmailReport/{studentId}")]
-        //public IHttpActionResult GenerateAndEmailReport(string studentId)
+        //public IHttpActionResult GenerateAndEmailReport(string studentId, [FromBody] EvaluationPayload payload)
         //{
         //    try
         //    {
-        //        // Student name aur session fetch karo
-        //        var studentInfo = db.Enrollment
-        //            .Where(e => e.studentID == studentId)
-        //            .Select(e => new {
-        //                StudentName = e.Student.name,
-        //                SessionName = e.Session.name
-        //            })
-        //            .FirstOrDefault();
+        //        if (payload == null || payload.Evaluations == null || !payload.Evaluations.Any())
+        //            return BadRequest("No confidential evaluation found.");
 
-        //        string studentName = studentInfo?.StudentName ?? "N/A";
-        //        string sessionName = studentInfo?.SessionName ?? "N/A";
+        //        var activeRecipient = db.Email.FirstOrDefault(x => x.isActive == true);
+        //        if (activeRecipient == null || string.IsNullOrEmpty(activeRecipient.mail))
+        //            return BadRequest("No active recipient email found.");
 
-        //        var results = db.StudentEvaluation
-        //            .Where(se => se.Enrollment.studentID == studentId && se.Questions.Questionare.type == "C")
-        //            .Select(se => new {
-        //                Teacher = se.Enrollment.Teacher.name,
-        //                Course = se.Enrollment.Course.title,
-        //                Question = se.Questions.QuestionText,
-        //                Score = se.score
-        //            }).ToList();
+        //        string targetEmail = activeRecipient.mail;
+        //        var first = payload.Evaluations.First();
 
-        //        if (!results.Any()) return BadRequest("Koi data nahi mila.");
-
-        //        using (MemoryStream ms = new MemoryStream())
+        //        // ✅ Yeh format GetEvaluations ke parse logic se match karta hai
+        //        var emailData = new
         //        {
-        //            Document document = new Document(PageSize.A4, 25, 25, 30, 30);
-        //            PdfWriter writer = PdfWriter.GetInstance(document, ms);
-        //            document.Open();
-
-        //            var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
-        //            var labelFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10, BaseColor.BLACK);
-        //            var normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
-        //            var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
-
-        //            // Title
-        //            Paragraph title = new Paragraph("CONFIDENTIAL EVALUATION REPORT", titleFont);
-        //            title.Alignment = Element.ALIGN_CENTER;
-        //            document.Add(title);
-        //            document.Add(new Paragraph("\n"));
-
-        //            // Student Info
-        //            document.Add(new Paragraph($"Student ID:   {studentId}", labelFont));
-        //            document.Add(new Paragraph($"Student Name: {studentName}", labelFont));
-        //            document.Add(new Paragraph($"Session:      {sessionName}", labelFont));
-        //            document.Add(new Paragraph($"Date:         {DateTime.Now:dd-MMM-yyyy}", labelFont));
-        //            document.Add(new Paragraph("\n"));
-
-        //            // Table
-        //            PdfPTable table = new PdfPTable(4);
-        //            table.WidthPercentage = 100;
-        //            table.SetWidths(new float[] { 20f, 20f, 50f, 10f });
-
-        //            string[] headers = { "Teacher", "Course", "Question", "Score" };
-        //            foreach (var h in headers)
+        //            studentId = first.StudentId,
+        //            studentName = first.StudentName,
+        //            teacherId = first.TeacherId,
+        //            teacherName = first.TeacherName,
+        //            session = first.SessionName,
+        //            subjectCode = first.CourseCode,
+        //            submittedOn = DateTime.Now,
+        //            evaluation = payload.Evaluations.Select(e => new
         //            {
-        //                PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
-        //                cell.BackgroundColor = new BaseColor(40, 40, 40);
-        //                cell.HorizontalAlignment = Element.ALIGN_CENTER;
-        //                cell.Padding = 5;
-        //                table.AddCell(cell);
-        //            }
+        //                questionText = e.QuestionText,
+        //                score = e.Score
+        //            }).ToList()
+        //        };
 
-        //            foreach (var item in results)
-        //            {
-        //                table.AddCell(new Phrase(item.Teacher, normalFont));
-        //                table.AddCell(new Phrase(item.Course, normalFont));
-        //                table.AddCell(new Phrase(item.Question, normalFont));
-        //                PdfPCell sCell = new PdfPCell(new Phrase(item.Score.ToString(), normalFont));
-        //                sCell.HorizontalAlignment = Element.ALIGN_CENTER;
-        //                table.AddCell(sCell);
-        //            }
+        //        string jsonReport = JsonConvert.SerializeObject(emailData, Formatting.Indented);
+        //        SendJsonEmail(jsonReport, targetEmail, studentId);
 
-        //            document.Add(table);
-        //            document.Close();
-
-        //            byte[] pdfBytes = ms.ToArray();
-        //            SendEmail(pdfBytes, "hammadarshad481@gmail.com", studentId, studentName, sessionName);
-        //        }
-
-        //        return Ok(new { message = "Report sent to admin!" });
+        //        return Ok(new { message = $"Report sent to {targetEmail}!" });
         //    }
         //    catch (Exception ex)
         //    {
@@ -186,6 +137,36 @@ namespace EmpPerAppE.Controllers.student
         //    }
         //}
 
+        //private void SendJsonEmail(string jsonContent, string recipientEmail, string sid)
+        //{
+        //    // ✅ Pehle payload ko re-serialize karo flat format mein
+        //    // jsonContent jo aa rahi hai wo grouped format mein hai
+        //    // Hum use directly bhej dete hain lekin markers ke saath
+
+        //    var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "Employee Performance");
+        //    var toEmail = new MailAddress(recipientEmail);
+        //    string appPassword = "umxziyrjnmpparos";
+
+        //    var smtp = new SmtpClient
+        //    {
+        //        Host = "smtp.gmail.com",
+        //        Port = 587,
+        //        EnableSsl = true,
+        //        DeliveryMethod = SmtpDeliveryMethod.Network,
+        //        UseDefaultCredentials = false,
+        //        Credentials = new NetworkCredential(fromEmail.Address, appPassword)
+        //    };
+
+        //    using (var mail = new MailMessage(fromEmail, toEmail))
+        //    {
+        //        mail.Subject = $"Confidential Evaluation - {sid}";
+
+        //        // ✅ START_EVAL aur END_EVAL markers zaroori hain
+        //        mail.Body = $"Confidential Evaluation Report\n\nSTART_EVAL\n{jsonContent}\nEND_EVAL\n\nRegards,\nFYP System";
+        //        mail.IsBodyHtml = false;
+        //        smtp.Send(mail);
+        //    }
+        //}
 
         [HttpPost]
         [Route("GenerateAndEmailReport/{studentId}")]
@@ -247,11 +228,11 @@ namespace EmpPerAppE.Controllers.student
                 return InternalServerError(new Exception("System Error: " + ex.Message));
             }
         }
-        // 1. Iska naam SendJsonEmail hona chahiye
-        // 2. Iska pehla parameter string hona chahiye (byte[] nahi)
+        //1. Iska naam SendJsonEmail hona chahiye
+        //2. Iska pehla parameter string hona chahiye(byte[] nahi)
         private void SendJsonEmail(string jsonContent, string recipientEmail, string sid)
         {
-            var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "Employee Performance Confidential  report");
+            var fromEmail = new MailAddress("hammadarshad88888@gmail.com", "Employee Performance Confidential report");
             var toEmail = new MailAddress(recipientEmail);
             string appPassword = "umxziyrjnmpparos";
 
@@ -267,14 +248,12 @@ namespace EmpPerAppE.Controllers.student
 
             using (var mail = new MailMessage(fromEmail, toEmail))
             {
-                mail.Subject = $"Confidential JSON Evaluation Report - {sid}";
+                // ✅ Subject mein "Confidential Evaluation" hona zaroori hai
+                mail.Subject = $"Confidential Evaluation - {sid}";
 
-                // Body mein JSON text ja raha hai
-                mail.Body = $" \n\nPlease view  the confidential evaluation report in JSON format below:\n\n{jsonContent}\n\nRegards,\nFYP System";
-
-                mail.IsBodyHtml = false; // Plain text JSON ke liye behtar hai
-
-                // Attachments ki zaroorat nahi hai kyunke hum body mein bhej rahe hain
+                // ✅ START_EVAL aur END_EVAL markers add kiye
+                mail.Body = $"Confidential Evaluation Report\n\nSTART_EVAL\n{jsonContent}\nEND_EVAL\n\nRegards,\nFYP System";
+                mail.IsBodyHtml = false;
                 smtp.Send(mail);
             }
         }

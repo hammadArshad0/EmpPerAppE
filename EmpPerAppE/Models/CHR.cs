@@ -12,16 +12,23 @@ namespace EmpPerAppE.Models
     using System;
     using System.Collections.Generic;
     
-    public partial class ClassheldReport
+    public partial class CHR
     {
-        public int SrNo { get; set; }
-        public string Course { get; set; }
-        public string Teacher { get; set; }
+        public int id { get; set; }
+        public string CourseCode { get; set; }
+        public string TeacherID { get; set; }
+        public string TeacherName { get; set; }
         public string Discipline { get; set; }
         public string Venue { get; set; }
         public string Status { get; set; }
-        public string LateIn { get; set; }
-        public string LeftEarly { get; set; }
+        public Nullable<int> LateIn { get; set; }
+        public Nullable<int> LeftEarly { get; set; }
         public string Remarks { get; set; }
+        public Nullable<System.DateTime> ClassDate { get; set; }
+        public Nullable<int> sessionID { get; set; }
+    
+        public virtual Course Course { get; set; }
+        public virtual Teacher Teacher { get; set; }
+        public virtual Session Session { get; set; }
     }
 }
