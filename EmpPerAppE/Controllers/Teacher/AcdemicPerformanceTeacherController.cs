@@ -244,5 +244,81 @@ namespace EmpPerAppE.Controllers.Teacher
                 TotalMax = totalMax
             });
         }
+
+        [HttpGet]
+        [Route("GetCourseQuestionDetail/{teacherId}/{sessionId}/{courseCode}")]
+        public IHttpActionResult GetCourseQuestionDetail(string teacherId, int sessionId, string courseCode, string evaluationType = "both")
+        {
+            var result = new List<object>();
+
+            if (evaluationType == "student" || evaluationType == "both")
+            {
+                var studentGroups = db.StudentEvaluation
+                    .Where(s => s.Enrollment.teacherID == teacherId
+                             && s.Enrollment.sessionID == sessionId
+                             && s.Enrollment.courseCode == courseCode)
+                    .GroupBy(s => s.questionID)
+                    .Select(g => new
+                    {
+                        QuestionId = g.Key,
+                        QuestionText = db.Questions
+                            .Where(q => q.QuestionID == g.Key)
+                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                        TotalResponses = g.Count(),
+                        Score1 = g.Count(x => x.score == 1),
+                        Score2 = g.Count(x => x.score == 2),
+                        Score3 = g.Count(x => x.score == 3),
+                        Score4 = g.Count(x => x.score == 4),
+                        Type = "Student",
+                        // Per student detail
+                        StudentDetails = g.Select(s => new
+                        {
+                            StudentName = db.Student
+                                .Where(st => st.userID == s.Enrollment.studentID)
+                                .Select(st => st.name).FirstOrDefault(),
+                            RollNo = s.Enrollment.studentID,
+                            Score = s.score
+                        }).ToList()
+                    }).ToList();
+                result.AddRange(studentGroups);
+            }
+
+            if (evaluationType == "peer" || evaluationType == "both")
+            {
+                var peerGroups = db.PeerEvaluation
+                    .Where(p => p.evaluateeID == teacherId
+                             && p.PeerEvaluator.sessionID == sessionId
+                             && p.courseCode == courseCode)
+                    .GroupBy(p => p.questionID)
+                    .Select(g => new
+                    {
+                        QuestionId = g.Key,
+                        QuestionText = db.Questions
+                            .Where(q => q.QuestionID == g.Key)
+                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                        TotalResponses = g.Count(),
+                        Score1 = g.Count(x => x.score == 1),
+                        Score2 = g.Count(x => x.score == 2),
+                        Score3 = g.Count(x => x.score == 3),
+                        Score4 = g.Count(x => x.score == 4),
+                        Type = "Peer",
+                        StudentDetails = g.Select(p => new
+                        {
+                            StudentName = db.Teacher
+                                .Where(t => t.userID == p.PeerEvaluator.teacherID)
+                                .Select(t => t.name).FirstOrDefault(),
+                            RollNo = p.PeerEvaluator.teacherID,
+                            Score = p.score
+                        }).ToList()
+                    }).ToList();
+                result.AddRange(peerGroups);
+            }
+
+            return Ok(result);
+        }
+
+
     }
 }

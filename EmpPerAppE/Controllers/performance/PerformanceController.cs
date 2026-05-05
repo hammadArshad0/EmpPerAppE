@@ -16,7 +16,7 @@ namespace EmpPerAppE.Controllers.performance
      
         [HttpGet]
         [Route("GetTeacherPerformanceAnalytics/{teacherId}/{sessionId}")]
-        public IHttpActionResult GetTeacherPerformanceAnalytics(string teacherId, int sessionId)
+        public IHttpActionResult GetTeacherPerformanceAnalytics(string teacherId, int sessionId, int? kpiId = null)
         {
             try
             {
@@ -33,8 +33,22 @@ namespace EmpPerAppE.Controllers.performance
 
 
                 // 2. Active KPIs
+                //var activeKPIs = db.EmployeSessionKPI
+                //    .Where(esk => esk.SessionID == sessionId)
+                //    .Select(esk => new
+                //    {
+                //        esk.id,
+                //        esk.KPIID,
+                //        esk.SubKPIID,
+                //        KPIName = db.KPI.Where(k => k.id == esk.KPIID).Select(k => k.name).FirstOrDefault(),
+                //        SubKPIName = db.SubKPI.Where(sk => sk.id == esk.SubKPIID).Select(sk => sk.name).FirstOrDefault()
+                //    })
+                //    .ToList();
+
+                // ✅ empTypeId filter add kiya
                 var activeKPIs = db.EmployeSessionKPI
-                    .Where(esk => esk.SessionID == sessionId)
+                    .Where(esk => esk.SessionID == sessionId &&
+                          (kpiId == null || esk.KPIID == kpiId)) // ✅ Direct KPIID check
                     .Select(esk => new
                     {
                         esk.id,
@@ -214,6 +228,29 @@ namespace EmpPerAppE.Controllers.performance
             {
                 return InternalServerError(ex);
             }
+        }
+
+        [HttpGet]
+       
+        [Route("GetKpiTypesBySession/{sessionId}")]
+        public IHttpActionResult GetKpiTypesBySession(int sessionId)
+        {
+            var types = db.EmployeSessionKPI
+                .Where(esk => esk.SessionID == sessionId)
+                .Select(esk => new {
+                    id = esk.KPIID,                    // ✅ EmployeetypeID ki jagah KPIID
+                    name = db.KPI
+                        .Where(k => k.id == esk.KPIID) // ✅ KPI table se naam
+                        .Select(k => k.name)
+                        .FirstOrDefault()
+                })
+                .Distinct()
+                .ToList()
+                .GroupBy(x => x.id)                    // ✅ Duplicate KPIs hata
+                .Select(g => new { id = g.Key, name = g.First().name })
+                .ToList();
+
+            return Ok(types);
         }
     }
 }

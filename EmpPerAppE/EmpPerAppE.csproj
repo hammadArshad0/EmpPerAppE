@@ -298,6 +298,7 @@
     <Compile Include="Controllers\HOD\SocietyManagementController.cs" />
     <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\Login\UsersController.cs" />
+    <Compile Include="Controllers\performance\CoursePerformanceEvalutionTypeController.cs" />
     <Compile Include="Controllers\performance\PerformanceController.cs" />
     <Compile Include="Controllers\student\ConfidentialController.cs" />
     <Compile Include="Controllers\student\StudentEvalutionController.cs" />
