@@ -11,6 +11,9 @@ namespace EmpPerAppE.Models.DTO
         public string Type { get; set; }
         public string Flag { get; set; }
         public int QuestionCount { get; set; }
+      
+        // Optional: Kitne critical questions hain ye dikhane ke liye
+        public int CriticalCount { get; set; }
     }
 
 

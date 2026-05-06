@@ -304,6 +304,7 @@
     <Compile Include="Controllers\student\StudentEvalutionController.cs" />
     <Compile Include="Controllers\student\CourseController.cs" />
     <Compile Include="Controllers\student\StudentController.cs" />
+    <Compile Include="Controllers\task\TaskController.cs" />
     <Compile Include="Controllers\Teacher\AcdemicPerformanceTeacherController.cs" />
     <Compile Include="Controllers\Teacher\PeerEvalutionController.cs" />
     <Compile Include="Controllers\Teacher\TeacherController.cs" />
@@ -320,6 +321,7 @@
     </Compile>
     <Compile Include="Models\DTO\CompareDTO.cs" />
     <Compile Include="Models\DTO\CourseManagement.cs" />
+    <Compile Include="Models\DTO\EmailRequestDTO.cs" />
     <Compile Include="Models\DTO\peerEvalution\PeerSubmissionModel.cs" />
     <Compile Include="Models\DTO\QuestionCreateDto.cs" />
     <Compile Include="Models\DTO\QuestionnaireListDto.cs" />

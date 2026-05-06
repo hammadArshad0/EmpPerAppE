@@ -7,10 +7,13 @@ using System.Web.Http;
 namespace EmpPerAppE.Controllers.Teacher
 {
     [RoutePrefix("api/TeacherSelf")]
-    public class AcdenicPerformanceTeacherController : ApiController  // ✅ Direct class, no nesting
+    public class AcdenicPerformanceTeacherController : ApiController
     {
         private fypempEntities db = new fypempEntities();
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetSessions
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetSessions")]
         public IHttpActionResult GetSessions()
@@ -21,6 +24,10 @@ namespace EmpPerAppE.Controllers.Teacher
                 .ToList());
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetMyCourses/{teacherId}/{sessionId}
+        // Returns distinct course codes for a teacher in a session
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetMyCourses/{teacherId}/{sessionId}")]
         public IHttpActionResult GetMyCourses(string teacherId, int sessionId)
@@ -33,6 +40,10 @@ namespace EmpPerAppE.Controllers.Teacher
             return Ok(courses);
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetMyPerformance/{teacherId}/{sessionId}
+        // Overall performance summary (Student + Peer + CHR)
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetMyPerformance/{teacherId}/{sessionId}")]
         public IHttpActionResult GetMyPerformance(string teacherId, int sessionId)
@@ -97,9 +108,21 @@ namespace EmpPerAppE.Controllers.Teacher
             });
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetCourseComparison/{teacherId}/{sessionId}
+        //     ?evaluationType=both|student|peer
+        //
+        // ✅ NEW: evaluationType parameter added
+        //    - student → only StudentAverage filled, PeerAverage = 0
+        //    - peer    → only PeerAverage filled, StudentAverage = 0
+        //    - both    → both filled (default behaviour)
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetCourseComparison/{teacherId}/{sessionId}")]
-        public IHttpActionResult GetCourseComparison(string teacherId, int sessionId)
+        public IHttpActionResult GetCourseComparison(
+            string teacherId,
+            int sessionId,
+            string evaluationType = "both")   // ← NEW parameter
         {
             const double MAX = 4.0;
             const double SCALE = 10.0;
@@ -112,37 +135,67 @@ namespace EmpPerAppE.Controllers.Teacher
 
             var result = courses.Select(course =>
             {
-                var studentList = db.StudentEvaluation
-                    .Where(s => s.Enrollment.teacherID == teacherId
-                             && s.Enrollment.sessionID == sessionId
-                             && s.Enrollment.courseCode == course)
-                    .ToList();
-                double sAvg = studentList.Any()
-                    ? (studentList.Sum(s => (double)s.score) / (studentList.Count * MAX)) * SCALE : 0;
+                double sAvg = 0;
+                double pAvg = 0;
 
-                var peerList = db.PeerEvaluation
-                    .Where(p => p.evaluateeID == teacherId
-                             && p.PeerEvaluator.sessionID == sessionId
-                             && p.courseCode == course)
-                    .ToList();
-                double pAvg = peerList.Any()
-                    ? (peerList.Sum(p => (double)p.score) / (peerList.Count * MAX)) * SCALE : 0;
+                // ── Student average (skip if peer-only) ──────────────────────
+                if (evaluationType == "student" || evaluationType == "both")
+                {
+                    var studentList = db.StudentEvaluation
+                        .Where(s => s.Enrollment.teacherID == teacherId
+                                 && s.Enrollment.sessionID == sessionId
+                                 && s.Enrollment.courseCode == course)
+                        .ToList();
+                    sAvg = studentList.Any()
+                        ? (studentList.Sum(s => (double)s.score) / (studentList.Count * MAX)) * SCALE
+                        : 0;
+                }
+
+                // ── Peer average (skip if student-only) ──────────────────────
+                if (evaluationType == "peer" || evaluationType == "both")
+                {
+                    var peerList = db.PeerEvaluation
+                        .Where(p => p.evaluateeID == teacherId
+                                 && p.PeerEvaluator.sessionID == sessionId
+                                 && p.courseCode == course)
+                        .ToList();
+                    pAvg = peerList.Any()
+                        ? (peerList.Sum(p => (double)p.score) / (peerList.Count * MAX)) * SCALE
+                        : 0;
+                }
+
+                // ── Overall % based on what is included ─────────────────────
+                double overall = 0;
+                if (evaluationType == "both")
+                    overall = Math.Round(((sAvg + pAvg) / 20.0) * 100, 2);
+                else if (evaluationType == "student")
+                    overall = Math.Round((sAvg / 10.0) * 100, 2);
+                else if (evaluationType == "peer")
+                    overall = Math.Round((pAvg / 10.0) * 100, 2);
 
                 return new
                 {
                     CourseCode = course,
                     StudentAverage = Math.Round(sAvg, 2),
                     PeerAverage = Math.Round(pAvg, 2),
-                    Overall = Math.Round(((sAvg + pAvg) / 20.0) * 100, 2)
+                    Overall = overall
                 };
             }).ToList();
 
             return Ok(result);
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetMyQuestionStats/{teacherId}/{sessionId}
+        //     ?courseCode=CS101&evaluationType=both|student|peer
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetMyQuestionStats/{teacherId}/{sessionId}")]
-        public IHttpActionResult GetMyQuestionStats(string teacherId, int sessionId, string courseCode = null, string evaluationType = "both")
+        public IHttpActionResult GetMyQuestionStats(
+            string teacherId,
+            int sessionId,
+            string courseCode = null,
+            string evaluationType = "both")
         {
             var result = new List<object>();
 
@@ -156,9 +209,7 @@ namespace EmpPerAppE.Controllers.Teacher
                     .Select(g => new
                     {
                         QuestionId = g.Key,
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
@@ -180,9 +231,7 @@ namespace EmpPerAppE.Controllers.Teacher
                     .Select(g => new
                     {
                         QuestionId = g.Key,
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
@@ -197,22 +246,30 @@ namespace EmpPerAppE.Controllers.Teacher
             return Ok(result);
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetTeacherResultByCourse
+        //     ?teacherId=x&courseCode=x&sessionId=x
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
-        [Route("GetTeacherResultByCourse")]  // ✅ Sirf ek baar
-        public IHttpActionResult GetTeachersResultByCourse(string teacherId, string courseCode, int sessionId)
+        [Route("GetTeacherResultByCourse")]
+        public IHttpActionResult GetTeachersResultByCourse(
+            string teacherId,
+            string courseCode,
+            int sessionId)
         {
-            const double MAX_SCORE_PER_QUESTION = 4.0;
-            const double SCALE_TO_TEN = 10.0;
+            const double MAX = 4.0;
+            const double SCALE = 10.0;
 
             var peerList = db.PeerEvaluation
                 .Where(p => p.evaluateeID == teacherId &&
-                       (string.IsNullOrEmpty(courseCode) || p.courseCode.ToUpper().Trim() == courseCode.ToUpper().Trim()) &&
+                       (string.IsNullOrEmpty(courseCode) ||
+                        p.courseCode.ToUpper().Trim() == courseCode.ToUpper().Trim()) &&
                        p.PeerEvaluator.sessionID == sessionId)
                 .ToList();
 
-            double peerTotalScore = peerList.Sum(p => (double)p.score);
-            double peerMaxTotal = peerList.Count * MAX_SCORE_PER_QUESTION;
-            double peerAvg = peerMaxTotal > 0 ? (peerTotalScore / peerMaxTotal) * SCALE_TO_TEN : 0;
+            double peerTotal = peerList.Sum(p => (double)p.score);
+            double peerMax = peerList.Count * MAX;
+            double peerAvg = peerMax > 0 ? (peerTotal / peerMax) * SCALE : 0;
 
             var studentList = db.StudentEvaluation
                 .Where(s => s.Enrollment.teacherID == teacherId &&
@@ -220,13 +277,13 @@ namespace EmpPerAppE.Controllers.Teacher
                        (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode))
                 .ToList();
 
-            double studentTotalScore = studentList.Sum(s => (double)s.score);
-            double studentMaxTotal = studentList.Count * MAX_SCORE_PER_QUESTION;
-            double studentAvg = studentMaxTotal > 0 ? (studentTotalScore / studentMaxTotal) * SCALE_TO_TEN : 0;
+            double stuTotal = studentList.Sum(s => (double)s.score);
+            double stuMax = studentList.Count * MAX;
+            double stuAvg = stuMax > 0 ? (stuTotal / stuMax) * SCALE : 0;
 
-            double totalScore = peerTotalScore + studentTotalScore;
-            double totalMax = peerMaxTotal + studentMaxTotal;
-            double overallPercentage = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+            double totalScore = peerTotal + stuTotal;
+            double totalMax = peerMax + stuMax;
+            double overallPct = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
 
             var name = db.Teacher.Where(t => t.userID == teacherId).Select(t => t.name).FirstOrDefault();
 
@@ -234,20 +291,32 @@ namespace EmpPerAppE.Controllers.Teacher
             {
                 Name = name,
                 PeerAverage = Math.Round(peerAvg, 2),
-                StudentAverage = Math.Round(studentAvg, 2),
-                Percentage = Math.Round(overallPercentage, 2),
-                PeerTotal = peerTotalScore,
-                PeerMax = peerMaxTotal,
-                StudentTotal = studentTotalScore,
-                StudentMax = studentMaxTotal,
+                StudentAverage = Math.Round(stuAvg, 2),
+                Percentage = Math.Round(overallPct, 2),
+                PeerTotal = peerTotal,
+                PeerMax = peerMax,
+                StudentTotal = stuTotal,
+                StudentMax = stuMax,
                 Total = totalScore,
                 TotalMax = totalMax
             });
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // GET api/TeacherSelf/GetCourseQuestionDetail/{teacherId}/{sessionId}/{courseCode}
+        //     ?evaluationType=both|student|peer
+        //
+        // ✅ Returns per-question detail WITH individual evaluator names & scores
+        //    StudentDetails = list of { StudentName, RollNo, Score }
+        //    For Peer type  = list of { StudentName (teacher name), RollNo (teacherID), Score }
+        // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Route("GetCourseQuestionDetail/{teacherId}/{sessionId}/{courseCode}")]
-        public IHttpActionResult GetCourseQuestionDetail(string teacherId, int sessionId, string courseCode, string evaluationType = "both")
+        public IHttpActionResult GetCourseQuestionDetail(
+            string teacherId,
+            int sessionId,
+            string courseCode,
+            string evaluationType = "both")
         {
             var result = new List<object>();
 
@@ -261,9 +330,7 @@ namespace EmpPerAppE.Controllers.Teacher
                     .Select(g => new
                     {
                         QuestionId = g.Key,
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
@@ -271,7 +338,6 @@ namespace EmpPerAppE.Controllers.Teacher
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
                         Type = "Student",
-                        // Per student detail
                         StudentDetails = g.Select(s => new
                         {
                             StudentName = db.Student
@@ -294,9 +360,7 @@ namespace EmpPerAppE.Controllers.Teacher
                     .Select(g => new
                     {
                         QuestionId = g.Key,
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText).FirstOrDefault(),
+                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
@@ -304,6 +368,7 @@ namespace EmpPerAppE.Controllers.Teacher
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
                         Type = "Peer",
+                        // For peer: show the evaluating teacher's name & ID
                         StudentDetails = g.Select(p => new
                         {
                             StudentName = db.Teacher
@@ -318,7 +383,5 @@ namespace EmpPerAppE.Controllers.Teacher
 
             return Ok(result);
         }
-
-
     }
 }

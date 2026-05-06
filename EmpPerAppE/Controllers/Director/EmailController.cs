@@ -7,6 +7,9 @@ using System.Net.Http;
 using System.Web.Helpers;
 using System.Web.Http;
 using EmpPerAppE.Models;
+using MailKit;
+using MailKit.Search;
+using EmpPerAppE.Models.DTO;
 
 namespace EmpPerAppE.Controllers.Director
 {
@@ -154,9 +157,122 @@ namespace EmpPerAppE.Controllers.Director
 
 
 
+        //[HttpPost]
+        //[Route("get-evaluations")]
+        //public IHttpActionResult GetEvaluations([FromBody] Email request)
+        //{
+        //    try
+        //    {
+        //        var emailRecord = db.Email.FirstOrDefault(e => e.mail == request.mail);
+        //        if (emailRecord == null)
+        //            return BadRequest("Email not found");
+
+        //        var evaluations = new List<object>();
+
+        //        using (var client = new MailKit.Net.Imap.ImapClient())
+        //        {
+        //            // ✅ SSL certificate ignore karo (common error)
+        //            client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+        //            client.Connect("imap.gmail.com", 993, true);
+        //            client.Authenticate(emailRecord.mail, emailRecord.password);
+
+        //            var inbox = client.Inbox;
+        //            // 🔥 Dynamic filter
+        //            SearchQuery query;
+
+        //            if (request.filter == "unread")
+        //            {
+        //                query = SearchQuery.NotSeen;
+        //            }
+        //            else if (request.filter == "read")
+        //            {
+        //                query = SearchQuery.Seen;
+        //            }
+        //            else
+        //            {
+        //                query = SearchQuery.All;
+        //            }
+
+        //            inbox.Open(MailKit.FolderAccess.ReadOnly);
+
+        //            // ✅ Sirf last 50 emails dekho - saari nahi
+        //            var allUids = inbox.Search(MailKit.Search.SearchQuery.All);
+        //            var recentUids = allUids.Reverse().Take(50).ToList();
+
+        //            foreach (var uid in recentUids)
+        //            {
+        //                var message = inbox.GetMessage(uid);
+        //                var body = message.TextBody ?? message.HtmlBody;
+
+        //                if (string.IsNullOrEmpty(body)) continue;
+
+        //                var start = body.IndexOf("START_EVAL");
+        //                var end = body.IndexOf("END_EVAL");
+
+        //                if (start == -1 || end == -1 || end <= start) continue;
+
+        //                try
+        //                {
+        //                    var json = body.Substring(start + 10, end - (start + 10)).Trim();
+        //                    var parsed = Newtonsoft.Json.Linq.JObject.Parse(json);
+
+        //                    var studentNode = parsed["Student"] ?? parsed["student"];
+        //                    var teacherEvalsNode = parsed["TeacherEvaluations"] ?? parsed["teacherEvaluations"];
+
+        //                    if (teacherEvalsNode == null) continue;
+
+        //                    foreach (var te in teacherEvalsNode)
+        //                    {
+        //                        var teacher = te["Teacher"] ?? te["teacher"];
+        //                        var course = te["Course"] ?? te["course"];
+        //                        var evals = te["Evaluations"] ?? te["evaluations"];
+
+        //                        evaluations.Add(new
+        //                        {
+        //                            studentId = studentNode?["ID"]?.ToString() ?? studentNode?["id"]?.ToString() ?? "N/A",
+        //                            studentName = studentNode?["Name"]?.ToString() ?? studentNode?["name"]?.ToString() ?? "N/A",
+        //                            teacherId = teacher?["ID"]?.ToString() ?? teacher?["id"]?.ToString() ?? "N/A",
+        //                            teacherName = teacher?["Name"]?.ToString() ?? teacher?["name"]?.ToString() ?? "N/A",
+        //                            session = parsed["Session"]?.ToString() ?? parsed["session"]?.ToString() ?? "N/A",
+        //                            subjectCode = course?["Code"]?.ToString() ?? course?["code"]?.ToString() ?? "N/A",
+        //                            subjectTitle = course?["Title"]?.ToString() ?? course?["title"]?.ToString() ?? "N/A",
+        //                            submittedOn = message.Date.DateTime,
+        //                            evaluation = evals
+        //                        });
+        //                    }
+        //                }
+        //                catch (Exception parseEx)
+        //                {
+        //                    System.Diagnostics.Debug.WriteLine("PARSE ERROR: " + parseEx.Message);
+        //                    continue;
+        //                }
+        //            }
+
+        //            client.Disconnect(true);
+        //        }
+
+        //        return Ok(new
+        //        {
+        //            success = true,
+        //            count = evaluations.Count,
+        //            data = evaluations
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        // ✅ Full error message return karo
+        //        return Ok(new
+        //        {
+        //            success = false,
+        //            error = ex.Message,
+        //            detail = ex.InnerException?.Message ?? "No inner exception"
+        //        });
+        //    }
+    
         [HttpPost]
         [Route("get-evaluations")]
-        public IHttpActionResult GetEvaluations([FromBody] Email request)
+        public IHttpActionResult GetEvaluations([FromBody] EmailRequestDTO request) // Make sure Email class has 'mail', 'password', and 'filter'
         {
             try
             {
@@ -168,24 +284,46 @@ namespace EmpPerAppE.Controllers.Director
 
                 using (var client = new MailKit.Net.Imap.ImapClient())
                 {
-                    // ✅ SSL certificate ignore karo (common error)
+                    // SSL certificate ignore (common for development)
                     client.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
                     client.Connect("imap.gmail.com", 993, true);
                     client.Authenticate(emailRecord.mail, emailRecord.password);
 
                     var inbox = client.Inbox;
-                    inbox.Open(MailKit.FolderAccess.ReadOnly);
 
-                    // ✅ Sirf last 50 emails dekho - saari nahi
-                    var allUids = inbox.Search(MailKit.Search.SearchQuery.All);
-                    var recentUids = allUids.Reverse().Take(50).ToList();
+                    // ✅ ReadWrite access zaroori hai agar aap "unread" ko "read" mark karna chahte hain
+                    inbox.Open(MailKit.FolderAccess.ReadWrite);
+
+                    //  1. Dynamic Filter Setup
+                    SearchQuery query;
+                    if (request.filter == "unread")
+                        query = SearchQuery.NotSeen;
+                    else if (request.filter == "read")
+                        query = SearchQuery.Seen;
+                    else
+                        query = SearchQuery.All;
+
+                    // ✅ Confidential subject filter bhi add kar sakte hain (Optional)
+                    // query = query.And(SearchQuery.SubjectContains("Confidential"));
+
+                    // 🔥 2. Search using the query
+                    var filteredUids = inbox.Search(query);
+
+                    // 🔥 3. Sirf recent 50 filtered emails uthao
+                    var recentUids = filteredUids.Reverse().Take(50).ToList();
 
                     foreach (var uid in recentUids)
                     {
                         var message = inbox.GetMessage(uid);
-                        var body = message.TextBody ?? message.HtmlBody;
 
+                        // ✅ Agar filter "unread" hai, to fetch karne ke baad usay read mark kar dein
+                        if (request.filter == "unread")
+                        {
+                            inbox.AddFlags(uid, MessageFlags.Seen, true);
+                        }
+
+                        var body = message.TextBody ?? message.HtmlBody;
                         if (string.IsNullOrEmpty(body)) continue;
 
                         var start = body.IndexOf("START_EVAL");
@@ -195,6 +333,7 @@ namespace EmpPerAppE.Controllers.Director
 
                         try
                         {
+                            // Indexing fix (+10 for START_EVAL length)
                             var json = body.Substring(start + 10, end - (start + 10)).Trim();
                             var parsed = Newtonsoft.Json.Linq.JObject.Parse(json);
 
@@ -242,7 +381,6 @@ namespace EmpPerAppE.Controllers.Director
             }
             catch (Exception ex)
             {
-                // ✅ Full error message return karo
                 return Ok(new
                 {
                     success = false,
@@ -252,7 +390,8 @@ namespace EmpPerAppE.Controllers.Director
             }
         }
     }
+    }
     
 
-        }
+        
     
