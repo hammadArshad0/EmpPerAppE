@@ -11,19 +11,26 @@ namespace EmpPerAppE.Controllers.task
     {
         private fypempEntities db = new fypempEntities();
 
+
         [HttpGet]
         [Route("GetCriticalAnalysis")]
         public IHttpActionResult GetCriticalAnalysis(string type = "All")
         {
             try
             {
-                // 1. Critical questions filter karein aur unka type bhi check karein
+                // 1. Base query: Sirf Critical Questions
                 var query = db.Questions.Where(q => q.isCritical == true);
 
-                if (!string.IsNullOrEmpty(type) && type != "All")
+                // 2. Mapping Logic: Frontend "Student/Peer" ko DB "s/p" mein convert karein
+                string dbSearchType = "";
+                if (type.Trim().ToLower() == "student") dbSearchType = "s";
+                else if (type.Trim().ToLower() == "peer") dbSearchType = "t";
+
+                // Global Filter for Questions table
+                if (!string.IsNullOrEmpty(dbSearchType))
                 {
-                    // Yahan ensure karein ke "type" DB ke Questionare.type se exact match kare
-                    query = query.Where(q => q.Questionare.type.Trim() == type.Trim());
+                    // Questionare table mein 'type' column 's' ya 'p' check karega
+                    query = query.Where(q => q.Questionare.type.Trim().ToLower() == dbSearchType);
                 }
 
                 var criticalQuestions = query.ToList();
@@ -33,8 +40,11 @@ namespace EmpPerAppE.Controllers.task
                 {
                     var allResponses = new List<dynamic>();
 
-                    // 2. Student Data (Sirf tab jab type All ho ya Student ho)
-                    if (type == "All" || type == "Student")
+                    // Database se actual type uthayen (kyunki 'All' ke case mein humein pata hona chahiye question kis ka hai)
+                    string actualTypeInDB = q.Questionare.type.Trim().ToLower();
+
+                    // 3. Student Data logic (Agar DB mein 's' hai)
+                    if (actualTypeInDB == "s")
                     {
                         var sEval = db.StudentEvaluation.Where(e => e.questionID == q.QuestionID)
                             .Select(e => new {
@@ -48,8 +58,8 @@ namespace EmpPerAppE.Controllers.task
                         allResponses.AddRange(sEval);
                     }
 
-                    // 3. Peer Data (Sirf tab jab type All ho ya Peer ho)
-                    if (type == "All" || type == "Peer")
+                    // 4. Peer Data logic (Agar DB mein 'p' hai)
+                    else if (actualTypeInDB == "t")
                     {
                         var pEval = db.PeerEvaluation.Where(e => e.questionID == q.QuestionID)
                             .Select(e => new {
@@ -63,7 +73,6 @@ namespace EmpPerAppE.Controllers.task
                         allResponses.AddRange(pEval);
                     }
 
-                    // Sirf wahi sawal result mein dalein jin ka data mila hai
                     if (allResponses.Any())
                     {
                         result.Add(new
@@ -85,7 +94,6 @@ namespace EmpPerAppE.Controllers.task
             }
             catch (Exception ex) { return BadRequest(ex.Message); }
         }
-
         protected override void Dispose(bool disposing)
         {
             if (disposing) db.Dispose();

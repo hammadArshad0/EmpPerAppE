@@ -269,62 +269,129 @@ namespace EmpPerAppE.Controllers.Director
         //            detail = ex.InnerException?.Message ?? "No inner exception"
         //        });
         //    }
-    
+
         [HttpPost]
         [Route("get-evaluations")]
-        public IHttpActionResult GetEvaluations([FromBody] EmailRequestDTO request) // Make sure Email class has 'mail', 'password', and 'filter'
+        public IHttpActionResult GetEvaluations([FromBody] EmailRequestDTO request)
         {
+            // ✅ STEP 1: Request null check
+            if (request == null)
+                return Ok(new { success = false, error = "Request body is null. Check Content-Type header." });
+
+            if (string.IsNullOrEmpty(request.mail))
+                return Ok(new { success = false, error = "mail field is empty in request body." });
+
             try
             {
+                // ✅ STEP 2: DB check
                 var emailRecord = db.Email.FirstOrDefault(e => e.mail == request.mail);
                 if (emailRecord == null)
-                    return BadRequest("Email not found");
+                    return Ok(new { success = false, error = $"Email not found in DB: {request.mail}" });
+
+                if (string.IsNullOrEmpty(emailRecord.password))
+                    return Ok(new { success = false, error = "Email password is empty in database." });
 
                 var evaluations = new List<object>();
+                string filterVal = (request.filter ?? "all").Trim().ToLower();
 
                 using (var client = new MailKit.Net.Imap.ImapClient())
                 {
-                    // SSL certificate ignore (common for development)
+                    // ✅ STEP 3: SSL ignore
                     client.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
-                    client.Connect("imap.gmail.com", 993, true);
-                    client.Authenticate(emailRecord.mail, emailRecord.password);
+                    // ✅ STEP 4: Connect
+                    try
+                    {
+                        client.Connect("imap.gmail.com", 993, true);
+                    }
+                    catch (Exception connEx)
+                    {
+                        return Ok(new { success = false, error = "IMAP Connect failed: " + connEx.Message });
+                    }
+
+                    // ✅ STEP 5: Authenticate
+                    try
+                    {
+                        client.Authenticate(emailRecord.mail, emailRecord.password);
+                    }
+                    catch (Exception authEx)
+                    {
+                        return Ok(new
+                        {
+                            success = false,
+                            error = "Gmail Authentication failed. App Password use karein (normal password kaam nahi karta): " + authEx.Message
+                        });
+                    }
 
                     var inbox = client.Inbox;
-
-                    // ✅ ReadWrite access zaroori hai agar aap "unread" ko "read" mark karna chahte hain
                     inbox.Open(MailKit.FolderAccess.ReadWrite);
 
-                    //  1. Dynamic Filter Setup
+                    // ✅ STEP 6: Filter apply
                     SearchQuery query;
-                    if (request.filter == "unread")
+                    if (filterVal == "unread")
                         query = SearchQuery.NotSeen;
-                    else if (request.filter == "read")
+                    else if (filterVal == "read")
                         query = SearchQuery.Seen;
                     else
                         query = SearchQuery.All;
 
-                    // ✅ Confidential subject filter bhi add kar sakte hain (Optional)
-                    // query = query.And(SearchQuery.SubjectContains("Confidential"));
+                    // ✅ STEP 7: Search
+                    IList<UniqueId> filteredUids;
+                    try
+                    {
+                        filteredUids = inbox.Search(query);
+                    }
+                    catch (Exception searchEx)
+                    {
+                        client.Disconnect(true);
+                        return Ok(new { success = false, error = "Search failed: " + searchEx.Message });
+                    }
 
-                    // 🔥 2. Search using the query
-                    var filteredUids = inbox.Search(query);
+                    if (filteredUids == null || filteredUids.Count == 0)
+                    {
+                        client.Disconnect(true);
+                        return Ok(new
+                        {
+                            success = true,
+                            count = 0,
+                            data = evaluations,
+                            debug = $"Filter '{filterVal}' applied. No emails found matching this filter."
+                        });
+                    }
 
-                    // 🔥 3. Sirf recent 50 filtered emails uthao
                     var recentUids = filteredUids.Reverse().Take(50).ToList();
 
+                    // ✅ STEP 8: Fetch messages one by one (batch fetch remove kiya - compatibility issue)
                     foreach (var uid in recentUids)
                     {
-                        var message = inbox.GetMessage(uid);
-
-                        // ✅ Agar filter "unread" hai, to fetch karne ke baad usay read mark kar dein
-                        if (request.filter == "unread")
+                        MimeKit.MimeMessage message;
+                        try
                         {
-                            inbox.AddFlags(uid, MessageFlags.Seen, true);
+                            message = inbox.GetMessage(uid);
+                        }
+                        catch { continue; }
+
+                        // Unread ko read mark karo
+                        if (filterVal == "unread")
+                        {
+                            try { inbox.AddFlags(uid, MessageFlags.Seen, true); }
+                            catch { /* ignore */ }
                         }
 
-                        var body = message.TextBody ?? message.HtmlBody;
-                        if (string.IsNullOrEmpty(body)) continue;
+                        // Body nikalo
+                        string body = message.TextBody;
+
+                        // Agar TextBody nahi mila to HtmlBody se tags strip karo
+                        if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
+                        {
+                            body = System.Text.RegularExpressions.Regex.Replace(
+                                message.HtmlBody, "<.*?>", string.Empty
+                            );
+                            // HTML entities decode karo
+                            body = System.Web.HttpUtility.HtmlDecode(body);
+                        }
+
+                        if (string.IsNullOrWhiteSpace(body)) continue;
 
                         var start = body.IndexOf("START_EVAL");
                         var end = body.IndexOf("END_EVAL");
@@ -333,7 +400,6 @@ namespace EmpPerAppE.Controllers.Director
 
                         try
                         {
-                            // Indexing fix (+10 for START_EVAL length)
                             var json = body.Substring(start + 10, end - (start + 10)).Trim();
                             var parsed = Newtonsoft.Json.Linq.JObject.Parse(json);
 
@@ -381,17 +447,17 @@ namespace EmpPerAppE.Controllers.Director
             }
             catch (Exception ex)
             {
+                // ✅ Full error details return karo
                 return Ok(new
                 {
                     success = false,
                     error = ex.Message,
-                    detail = ex.InnerException?.Message ?? "No inner exception"
+                    detail = ex.InnerException?.Message ?? "No inner exception",
+                    stackHint = ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim() ?? "No stack"
                 });
             }
         }
     }
     }
-    
 
         
-    
