@@ -13,116 +13,190 @@ namespace EmpPerAppE.Controllers.Director
     {
         private fypempEntities db = new fypempEntities();
 
+        //    ///not crictal handle in it so not used this funtion only peer studnet handle
+        //    [HttpGet]
+        //    [Route("GetTeacherQuestionStatsFull")]
+        //    public IHttpActionResult GetTeacherQuestionStatsFull(string teacherId, int sessionId, string evaluationType, string courseCode = null)
+        //    {
+        //        var result = new List<object>();
+
+        //        // =========================
+        //        // 🔹 STUDENT EVALUATION
+        //        // =========================
+        //        if (evaluationType == "student" || evaluationType == "both")
+        //        {
+        //            //var studentQuery = db.StudentEvaluation
+        //            //    .Where(s =>
+        //            //        s.SessionID == sessionId &&
+        //            //        s.Enrollment.teacherID == teacherId &&
+        //            //        (courseCode == null || s.Enrollment.courseCode == courseCode)
+        //            //    );
+        //            var studentQuery = db.StudentEvaluation
+        //                                      .Where(s =>
+        //                                      // 1. Session check enrollment ke zariye karein
+        //                                      s.Enrollment.sessionID == sessionId &&
+
+        //                                      // 2. Teacher check
+        //                                      s.Enrollment.teacherID == teacherId &&
+
+        //                              // 3. Course code filter (null safety ke saath)
+        //                              (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode)
+        //);
+
+        //            var studentData = studentQuery
+        //                .GroupBy(s => s.questionID)
+        //                .Select(g => new
+        //                {
+        //                    QuestionId = g.Key,
+
+        //                    QuestionText = db.Questions
+        //                        .Where(q => q.QuestionID == g.Key)
+        //                        .Select(q => q.QuestionText)
+        //                        .FirstOrDefault(),
+
+        //                    AverageScore = g.Average(x => (double?)x.score) ?? 0,
+
+        //                    TotalResponses = g.Count(),
+
+        //                    Score1 = g.Count(x => x.score == 1),
+        //                    Score2 = g.Count(x => x.score == 2),
+        //                    Score3 = g.Count(x => x.score == 3),
+        //                    Score4 = g.Count(x => x.score == 4),
+
+        //                    Type = "Student"
+        //                })
+        //                .ToList();
+
+        //            result.AddRange(studentData);
+        //        }
+
+        //        // =========================
+        //        // 🔹 PEER EVALUATION
+        //        // =========================
+        //        if (evaluationType == "peer" || evaluationType == "both")
+        //        {
+        //            //var peerQuery = db.PeerEvaluation
+        //            //    .Where(p =>
+        //            //        p.SessionId == sessionId &&
+        //            //        p.evaluateeID == teacherId &&
+        //            //        (courseCode == null || p.courseCode == courseCode)
+        //            //    );
+        //            //////////////////////////
+        //            var peerQuery = db.PeerEvaluation
+        //                     .Where(p =>
+        //                           // 1. SessionId direct nahi hai, isay PeerEvaluator navigation property se nikalain
+        //                           p.PeerEvaluator.sessionID == sessionId &&
+
+        //                             // 2. Evaluatee (jis teacher ki evaluation ho rahi hai)
+        //                             p.evaluateeID == teacherId &&
+
+        //                             // 3. Course Code filter (null safety ke sath)
+        //                             (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode)
+        //                         );
+        //            /////////////////////////
+        //            var peerData = peerQuery
+        //                .GroupBy(p => p.questionID)
+        //                .Select(g => new
+        //                {
+        //                    QuestionId = g.Key,
+
+        //                    QuestionText = db.Questions
+        //                        .Where(q => q.QuestionID == g.Key)
+        //                        .Select(q => q.QuestionText)
+        //                        .FirstOrDefault(),
+
+        //                    AverageScore = g.Average(x => (double?)x.score) ?? 0,
+
+        //                    TotalResponses = g.Count(),
+
+        //                    Score1 = g.Count(x => x.score == 1),
+        //                    Score2 = g.Count(x => x.score == 2),
+        //                    Score3 = g.Count(x => x.score == 3),
+        //                    Score4 = g.Count(x => x.score == 4),
+
+        //                    Type = "Peer"
+        //                })
+        //                .ToList();
+
+        //            result.AddRange(peerData);
+        //        }
+
+        //        return Ok(result);
+        //    }
+
 
         [HttpGet]
         [Route("GetTeacherQuestionStatsFull")]
-        public IHttpActionResult GetTeacherQuestionStatsFull(string teacherId, int sessionId, string evaluationType, string courseCode = null)
+        public IHttpActionResult GetTeacherQuestionStatsFull(string teacherId, int sessionId, string evaluationType, bool onlyCritical = false, string courseCode = null)
         {
             var result = new List<object>();
 
-            // =========================
-            // 🔹 STUDENT EVALUATION
-            // =========================
+            // 1. Student Evaluation
             if (evaluationType == "student" || evaluationType == "both")
             {
-                //var studentQuery = db.StudentEvaluation
-                //    .Where(s =>
-                //        s.SessionID == sessionId &&
-                //        s.Enrollment.teacherID == teacherId &&
-                //        (courseCode == null || s.Enrollment.courseCode == courseCode)
-                //    );
-                var studentQuery = db.StudentEvaluation
-                                          .Where(s =>
-                                          // 1. Session check enrollment ke zariye karein
-                                          s.Enrollment.sessionID == sessionId &&
+                var studentQuery = db.StudentEvaluation.Where(s =>
+                    s.Enrollment.sessionID == sessionId &&
+                    s.Enrollment.teacherID == teacherId &&
+                    (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode));
 
-                                          // 2. Teacher check
-                                          s.Enrollment.teacherID == teacherId &&
+                if (onlyCritical) studentQuery = studentQuery.Where(s => s.Questions.isCritical == true);
 
-                                  // 3. Course code filter (null safety ke saath)
-                                  (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode)
-    );
-
-                var studentData = studentQuery
-                    .GroupBy(s => s.questionID)
-                    .Select(g => new
-                    {
-                        QuestionId = g.Key,
-
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText)
-                            .FirstOrDefault(),
-
+                var data = studentQuery.GroupBy(s => new { s.questionID, s.Questions.QuestionText, s.Questions.isCritical })
+                    .Select(g => new {
+                        QuestionId = g.Key.questionID,
+                        QuestionText = g.Key.QuestionText,
+                        isCritical = g.Key.isCritical,
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
-
                         TotalResponses = g.Count(),
-
                         Score1 = g.Count(x => x.score == 1),
                         Score2 = g.Count(x => x.score == 2),
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
-
-                        Type = "Student"
-                    })
-                    .ToList();
-
-                result.AddRange(studentData);
+                        Type = "Student",
+                        // Yahan Name aur ID fetch ho rahi hai detail modal ke liye
+                        Evaluators = g.Select(x => new {
+                            ID = x.Enrollment.studentID,
+                            Name = db.Student.Where(st => st.userID == x.Enrollment.studentID).Select(st => st.name).FirstOrDefault(),
+                            GivenScore = x.score ?? 0
+                        }).ToList()
+                    }).ToList();
+                result.AddRange(data);
             }
 
-            // =========================
-            // 🔹 PEER EVALUATION
-            // =========================
+            // 2. Peer Evaluation (Same logic for Peer)
             if (evaluationType == "peer" || evaluationType == "both")
             {
-                //var peerQuery = db.PeerEvaluation
-                //    .Where(p =>
-                //        p.SessionId == sessionId &&
-                //        p.evaluateeID == teacherId &&
-                //        (courseCode == null || p.courseCode == courseCode)
-                //    );
-                //////////////////////////
-                var peerQuery = db.PeerEvaluation
-                         .Where(p =>
-                               // 1. SessionId direct nahi hai, isay PeerEvaluator navigation property se nikalain
-                               p.PeerEvaluator.sessionID == sessionId &&
+                var peerQuery = db.PeerEvaluation.Where(p =>
+                    p.PeerEvaluator.sessionID == sessionId &&
+                    p.evaluateeID == teacherId &&
+                    (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode));
 
-                                 // 2. Evaluatee (jis teacher ki evaluation ho rahi hai)
-                                 p.evaluateeID == teacherId &&
+                if (onlyCritical) peerQuery = peerQuery.Where(p => p.Questions.isCritical == true);
 
-                                 // 3. Course Code filter (null safety ke sath)
-                                 (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode)
-                             );
-                /////////////////////////
-                var peerData = peerQuery
-                    .GroupBy(p => p.questionID)
-                    .Select(g => new
-                    {
-                        QuestionId = g.Key,
-
-                        QuestionText = db.Questions
-                            .Where(q => q.QuestionID == g.Key)
-                            .Select(q => q.QuestionText)
-                            .FirstOrDefault(),
-
+                var data = peerQuery.GroupBy(p => new { p.questionID, p.Questions.QuestionText, p.Questions.isCritical })
+                    .Select(g => new {
+                        QuestionId = g.Key.questionID,
+                        QuestionText = g.Key.QuestionText,
+                        isCritical = g.Key.isCritical,
                         AverageScore = g.Average(x => (double?)x.score) ?? 0,
-
                         TotalResponses = g.Count(),
-
                         Score1 = g.Count(x => x.score == 1),
                         Score2 = g.Count(x => x.score == 2),
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
-
-                        Type = "Peer"
-                    })
-                    .ToList();
-
-                result.AddRange(peerData);
+                        Type = "Peer",
+                        Evaluators = g.Select(x => new {
+                            ID = x.PeerEvaluator.teacherID,
+                            Name = db.Teacher.Where(t => t.userID == x.PeerEvaluator.teacherID).Select(t => t.name).FirstOrDefault(),
+                            GivenScore = x.score ?? 0
+                        }).ToList()
+                    }).ToList();
+                result.AddRange(data);
             }
 
             return Ok(result);
         }
+
 
         [HttpGet]
         [Route("GetTeacherResultByCourse")]
@@ -256,25 +330,25 @@ namespace EmpPerAppE.Controllers.Director
 
 
 
-            // 1. Get All Teachers Summary for a Session (For the Graph/Cards)
-            [HttpGet]
-            [Route("GetAllTeachersSummary")]
-            public IHttpActionResult GetAllTeachersSummary(int sessionId)
+        // 1. Get All Teachers Summary for a Session (For the Graph/Cards)
+        [HttpGet]
+        [Route("GetAllTeachersSummary")]
+        public IHttpActionResult GetAllTeachersSummary(int sessionId)
+        {
+            var teachers = db.Teacher.ToList();
+            var summaryList = new List<object>();
+
+            foreach (var teacher in teachers)
             {
-                var teachers = db.Teacher.ToList();
-                var summaryList = new List<object>();
-
-                foreach (var teacher in teachers)
-                {
-                    // Apka purana calculation logic yahan apply hoga 
-                    // (StudentAvg, PeerAvg, Overall%)
-                    // Mazeed behtar hai ke aap is logic ko ek private method mein rakh lein
-                    var result = CalculatePerformance(teacher.userID, sessionId);
-                    summaryList.Add(result);
-                }
-
-                return Ok(summaryList);
+                // Apka purana calculation logic yahan apply hoga 
+                // (StudentAvg, PeerAvg, Overall%)
+                // Mazeed behtar hai ke aap is logic ko ek private method mein rakh lein
+                var result = CalculatePerformance(teacher.userID, sessionId);
+                summaryList.Add(result);
             }
+
+            return Ok(summaryList);
+        }
         [HttpGet]
         [Route("GetTeachersPerformanceList")]
         public IHttpActionResult GetTeachersPerformanceList(int sessionId, string department = "All", string courseCode = "All")
@@ -361,6 +435,69 @@ namespace EmpPerAppE.Controllers.Director
             };
         }
 
-    }
-    }
 
+         [HttpGet]
+        [Route("GetQuestionEvaluators")]
+        public IHttpActionResult GetQuestionEvaluators(int questionId, string teacherId, int sessionId, string evalType)
+        {
+            try
+            {
+                if (evalType.ToLower() == "student")
+                {
+                    var data = db.StudentEvaluation
+                        .Where(e => e.questionID == questionId && e.Enrollment.teacherID == teacherId && e.Enrollment.sessionID == sessionId)
+                        .Select(e => new {
+                            EvaluatorID = e.Enrollment.studentID,
+                            EvaluatorName = e.Enrollment.Student.name,
+                            Score = e.score ?? 0
+                        }).ToList();
+                    return Ok(data);
+                }
+                else if (evalType.ToLower() == "peer")
+                {
+                    // Peer Evaluation -> PeerEvaluator -> Course (Directly in PeerEvaluation table)
+                    var data = db.PeerEvaluation
+                        .Where(e => e.questionID == questionId
+                                 && e.evaluateeID == teacherId
+                                 && e.evaluatorID != null // Safety check
+                                 && e.PeerEvaluator.sessionID == sessionId) // Session filter via PeerEvaluator
+                        .Select(e => new {
+                            EvaluatorID = e.PeerEvaluator.teacherID,
+                            EvaluatorName = e.PeerEvaluator.Teacher.name,
+                            // Aapke schema mein PeerEvaluation mein courseCode hai, usse Title utha lein
+                            CourseName = db.Course
+                                           .Where(c => c.code == e.courseCode)
+                                           .Select(c => c.title)
+                                           .FirstOrDefault() ?? "General Review",
+                            Score = e.score ?? 0
+                        }).ToList();
+                    return Ok(data);
+                }
+                return Ok(new List<object>());
+            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+    }
+    }
+//var peerData = db.PeerEvaluation
+//    .Where(pe => pe.evaluateeID == teacherId          // Jis Teacher ki rating ho rahi hai
+//              && pe.PeerEvaluator.sessionID == sessionId) // Session Link (PeerEvaluator table se)
+//    .Select(pe => new {
+//        EvaluatorName = pe.PeerEvaluator.Teacher.name, // Rating dene wala teacher
+//        Course = db.Course
+//                   .Where(c => c.code == pe.courseCode)
+//                   .Select(c => c.title)
+//                   .FirstOrDefault(),
+//        Score = pe.score
+//    }).ToList();
+
+
+//var studentData = db.StudentEvaluation
+//    .Where(se => se.Enrollment.teacherID == teacherId  // Teacher Link
+//              && se.Enrollment.sessionID == sessionId) // Session Link
+//    .Select(se => new {
+//        EvaluatorName = se.Enrollment.Student.name,
+//        Course = se.Enrollment.Course.title,
+//        Score = se.score
+//    }).ToList();
