@@ -42,14 +42,26 @@ namespace EmpPerAppE.Controllers.Director
                 db.SaveChanges(); // ID generated
 
                 // Insert Questions
-                foreach (var qText in model.Questions)
+                //foreach (var qText in model.Questions)
+                //{
+                //    if (!string.IsNullOrWhiteSpace(qText))
+                //    {
+                //        db.Questions.Add(new Questions
+                //        {
+                //            QuestionareID = questionnaire.id,
+                //            QuestionText = qText
+                //        });
+                //    }
+                //}
+                foreach (var qObj in model.Questions) // model.Questions ab object list hai
                 {
-                    if (!string.IsNullOrWhiteSpace(qText))
+                    if (!string.IsNullOrWhiteSpace(qObj.QuestionText))
                     {
                         db.Questions.Add(new Questions
                         {
                             QuestionareID = questionnaire.id,
-                            QuestionText = qText
+                            QuestionText = qObj.QuestionText,
+                            isCritical = qObj.IsCritical // <--- Ye naya column add karein
                         });
                     }
                 }
@@ -110,7 +122,8 @@ namespace EmpPerAppE.Controllers.Director
                     .Select(q => new
                     {
                         id = q.QuestionID,
-                        questionText = q.QuestionText
+                        questionText = q.QuestionText,
+                        isCritical = q.isCritical // <--- Frontend ko batane ke liye
                     }).ToList()
             };
 
@@ -185,7 +198,8 @@ namespace EmpPerAppE.Controllers.Director
                                 db.Questions.Add(new Questions
                                 {
                                     QuestionareID = model.QuestionnaireId,
-                                    QuestionText = q.QuestionText
+                                    QuestionText = q.QuestionText,
+                                    isCritical = q.IsCritical // <--- Yahan add karein
                                 });
                             }
                         }
@@ -195,6 +209,7 @@ namespace EmpPerAppE.Controllers.Director
                             if (existing != null)
                             {
                                 existing.QuestionText = q.QuestionText;
+                                existing.isCritical = q.IsCritical; // <--- Status update karein
                             }
                         }
                     }
@@ -296,4 +311,7 @@ namespace EmpPerAppE.Controllers.Director
             base.Dispose(disposing);
         }
     }
+
+
+
 }

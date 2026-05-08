@@ -117,6 +117,7 @@
           <Property Name="QuestionID" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="QuestionareID" Type="int" Nullable="false" />
           <Property Name="QuestionText" Type="nvarchar" MaxLength="500" Nullable="false" />
+          <Property Name="isCritical" Type="bit" />
         </EntityType>
         <EntityType Name="Session">
           <Key>
@@ -1593,6 +1594,7 @@
           <NavigationProperty Name="PeerEvaluation" Relationship="fypempModel.FK__PeerEvalu__quest__3A4CA8FD" FromRole="Questions" ToRole="PeerEvaluation" />
           <NavigationProperty Name="StudentEvaluation" Relationship="fypempModel.FK_StudentEvaluation_Questions" FromRole="Questions" ToRole="StudentEvaluation" />
           <NavigationProperty Name="SocietyEvaluation" Relationship="fypempModel.FK_SocietyEvaluation_Question" FromRole="Questions" ToRole="SocietyEvaluation" />
+          <Property Name="isCritical" Type="Boolean" />
         </EntityType>
         <Association Name="FK_Questions_Questionare">
           <End Type="fypempModel.Questionare" Role="Questionare" Multiplicity="1" />
@@ -1999,6 +2001,7 @@
           <EntitySetMapping Name="Questions">
             <EntityTypeMapping TypeName="fypempModel.Questions">
               <MappingFragment StoreEntitySet="Questions">
+                <ScalarProperty Name="isCritical" ColumnName="isCritical" />
                 <ScalarProperty Name="QuestionText" ColumnName="QuestionText" />
                 <ScalarProperty Name="QuestionareID" ColumnName="QuestionareID" />
                 <ScalarProperty Name="QuestionID" ColumnName="QuestionID" />
