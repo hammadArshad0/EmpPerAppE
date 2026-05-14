@@ -17,6 +17,7 @@ namespace EmpPerAppE.Models
         public Enrollment()
         {
             this.StudentEvaluation = new HashSet<StudentEvaluation>();
+            this.KPIScore = new HashSet<KPIScore>();
         }
     
         public int id { get; set; }
@@ -24,11 +25,14 @@ namespace EmpPerAppE.Models
         public string teacherID { get; set; }
         public string courseCode { get; set; }
         public Nullable<int> sessionID { get; set; }
+        public string Section { get; set; }
+        public string Grade { get; set; }
     
         public virtual Course Course { get; set; }
         public virtual Session Session { get; set; }
         public virtual Student Student { get; set; }
         public virtual Teacher Teacher { get; set; }
         public virtual ICollection<StudentEvaluation> StudentEvaluation { get; set; }
+        public virtual ICollection<KPIScore> KPIScore { get; set; }
     }
 }

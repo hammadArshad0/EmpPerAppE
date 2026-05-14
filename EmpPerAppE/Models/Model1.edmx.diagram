@@ -68,6 +68,12 @@
         <AssociationConnector Association="fypempModel.FK__CHR__CourseCode__41B8C09B" />
         <AssociationConnector Association="fypempModel.FK__CHR__TeacherID__42ACE4D4" />
         <AssociationConnector Association="fypempModel.FK_CHR_Session" />
+        <AssociationConnector Association="fypempModel.FK__KPIScore__enroll__7908F585" />
+        <EntityTypeShape EntityType="fypempModel.ProjectEvaluation" Width="1.5" PointX="10.5" PointY="4.625" />
+        <AssociationConnector Association="fypempModel.FK_ProjectEval_Director" />
+        <AssociationConnector Association="fypempModel.FK_ProjectEval_Question" />
+        <AssociationConnector Association="fypempModel.FK_ProjectEval_Session" />
+        <AssociationConnector Association="fypempModel.FK_ProjectEval_Teacher" />
       </Diagram>
     </edmx:Diagrams>
   </edmx:Designer>

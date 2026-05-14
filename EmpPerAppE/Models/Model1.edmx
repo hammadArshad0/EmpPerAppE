@@ -64,6 +64,8 @@
           <Property Name="teacherID" Type="varchar" MaxLength="20" />
           <Property Name="courseCode" Type="varchar" MaxLength="20" />
           <Property Name="sessionID" Type="int" />
+          <Property Name="Section" Type="varchar" MaxLength="20" />
+          <Property Name="Grade" Type="varchar" MaxLength="10" />
         </EntityType>
         <EntityType Name="KPI">
           <Key>
@@ -82,6 +84,8 @@
           <Property Name="empID" Type="varchar" MaxLength="20" />
           <Property Name="score" Type="int" />
           <Property Name="evaluatorID" Type="varchar" MaxLength="20" />
+          <Property Name="enrollmentID" Type="int" />
+          <Property Name="remarks" Type="nvarchar(max)" />
         </EntityType>
         <EntityType Name="PeerEvaluation">
           <Key>
@@ -101,6 +105,17 @@
           <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="teacherID" Type="varchar" MaxLength="20" />
           <Property Name="sessionID" Type="int" />
+        </EntityType>
+        <EntityType Name="ProjectEvaluation">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="evaluatorID" Type="varchar" MaxLength="20" Nullable="false" />
+          <Property Name="evaluateeID" Type="varchar" MaxLength="20" Nullable="false" />
+          <Property Name="questionID" Type="int" Nullable="false" />
+          <Property Name="score" Type="int" Nullable="false" />
+          <Property Name="sessionID" Type="int" Nullable="false" />
         </EntityType>
         <EntityType Name="Questionare">
           <Key>
@@ -175,6 +190,7 @@
           <Property Name="userID" Type="varchar" MaxLength="20" Nullable="false" />
           <Property Name="name" Type="varchar" MaxLength="30" />
           <Property Name="admissionSessionID" Type="int" />
+          <Property Name="CGPA" Type="decimal" Precision="3" Scale="2" />
         </EntityType>
         <EntityType Name="StudentEvaluation">
           <Key>
@@ -202,6 +218,7 @@
           <Property Name="department" Type="varchar" MaxLength="50" />
           <Property Name="isPermanentEvaluator" Type="int" />
           <Property Name="designation" Type="varchar" MaxLength="30" />
+          <Property Name="IsCommitteeMember" Type="bit" />
         </EntityType>
         <EntityType Name="Users">
           <Key>
@@ -210,7 +227,6 @@
           <Property Name="id" Type="varchar" MaxLength="20" Nullable="false" />
           <Property Name="password" Type="varchar" MaxLength="20" />
           <Property Name="role" Type="varchar" MaxLength="20" />
-          <Property Name="profileImagePath" Type="varchar" MaxLength="50" />
           <Property Name="isActive" Type="int" />
         </EntityType>
         <Association Name="FK__CHR__CourseCode__41B8C09B">
@@ -366,6 +382,18 @@
             </Principal>
             <Dependent Role="KPIScore">
               <PropertyRef Name="empKPIID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK__KPIScore__enroll__7908F585">
+          <End Role="Enrollment" Type="Self.Enrollment" Multiplicity="0..1" />
+          <End Role="KPIScore" Type="Self.KPIScore" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Enrollment">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="KPIScore">
+              <PropertyRef Name="enrollmentID" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -597,6 +625,54 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_ProjectEval_Director">
+          <End Role="Users" Type="Self.Users" Multiplicity="1" />
+          <End Role="ProjectEvaluation" Type="Self.ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Users">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="evaluatorID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Question">
+          <End Role="Questions" Type="Self.Questions" Multiplicity="1" />
+          <End Role="ProjectEvaluation" Type="Self.ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="questionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Session">
+          <End Role="Session" Type="Self.Session" Multiplicity="1" />
+          <End Role="ProjectEvaluation" Type="Self.ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Session">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="sessionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Teacher">
+          <End Role="Teacher" Type="Self.Teacher" Multiplicity="1" />
+          <End Role="ProjectEvaluation" Type="Self.ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Teacher">
+              <PropertyRef Name="userID" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="evaluateeID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <Association Name="FK_Questions_Questionare">
           <End Role="Questionare" Type="Self.Questionare" Multiplicity="1" />
           <End Role="Questions" Type="Self.Questions" Multiplicity="*" />
@@ -692,6 +768,7 @@
           <EntitySet Name="KPIScore" EntityType="Self.KPIScore" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="PeerEvaluation" EntityType="Self.PeerEvaluation" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="PeerEvaluator" EntityType="Self.PeerEvaluator" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="ProjectEvaluation" EntityType="Self.ProjectEvaluation" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Questionare" EntityType="Self.Questionare" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Questions" EntityType="Self.Questions" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Session" EntityType="Self.Session" Schema="dbo" store:Type="Tables" />
@@ -754,6 +831,10 @@
           </AssociationSet>
           <AssociationSet Name="FK__KPIScore__empKPI__59FA5E80" Association="Self.FK__KPIScore__empKPI__59FA5E80">
             <End Role="EmployeSessionKPI" EntitySet="EmployeSessionKPI" />
+            <End Role="KPIScore" EntitySet="KPIScore" />
+          </AssociationSet>
+          <AssociationSet Name="FK__KPIScore__enroll__7908F585" Association="Self.FK__KPIScore__enroll__7908F585">
+            <End Role="Enrollment" EntitySet="Enrollment" />
             <End Role="KPIScore" EntitySet="KPIScore" />
           </AssociationSet>
           <AssociationSet Name="FK__KPIScore__evalua__5BE2A6F2" Association="Self.FK__KPIScore__evalua__5BE2A6F2">
@@ -831,6 +912,22 @@
           <AssociationSet Name="FK_CHR_Session" Association="Self.FK_CHR_Session">
             <End Role="Session" EntitySet="Session" />
             <End Role="CHR" EntitySet="CHR" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Director" Association="Self.FK_ProjectEval_Director">
+            <End Role="Users" EntitySet="Users" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Question" Association="Self.FK_ProjectEval_Question">
+            <End Role="Questions" EntitySet="Questions" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Session" Association="Self.FK_ProjectEval_Session">
+            <End Role="Session" EntitySet="Session" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Teacher" Association="Self.FK_ProjectEval_Teacher">
+            <End Role="Teacher" EntitySet="Teacher" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
           </AssociationSet>
           <AssociationSet Name="FK_Questions_Questionare" Association="Self.FK_Questions_Questionare">
             <End Role="Questionare" EntitySet="Questionare" />
@@ -913,6 +1010,9 @@
           <NavigationProperty Name="Student" Relationship="Self.FK__Enrollmen__stude__6754599E" FromRole="Enrollment" ToRole="Student" />
           <NavigationProperty Name="Teacher" Relationship="Self.FK__Enrollmen__teach__68487DD7" FromRole="Enrollment" ToRole="Teacher" />
           <NavigationProperty Name="StudentEvaluation" Relationship="Self.FK__StudentEv__enrol__6EF57B66" FromRole="Enrollment" ToRole="StudentEvaluation" />
+          <Property Name="Section" Type="String" MaxLength="20" FixedLength="false" Unicode="false" />
+          <Property Name="Grade" Type="String" MaxLength="10" FixedLength="false" Unicode="false" />
+          <NavigationProperty Name="KPIScore" Relationship="fypempModel.FK__KPIScore__enroll__7908F585" FromRole="Enrollment" ToRole="KPIScore" />
         </EntityType>
         <EntityType Name="KPI">
           <Key>
@@ -938,6 +1038,9 @@
           <NavigationProperty Name="EmployeSessionKPI" Relationship="Self.FK__KPIScore__empKPI__59FA5E80" FromRole="KPIScore" ToRole="EmployeSessionKPI" />
           <NavigationProperty Name="Users" Relationship="Self.FK__KPIScore__empID__5AEE82B9" FromRole="KPIScore" ToRole="Users" />
           <NavigationProperty Name="Users1" Relationship="Self.FK__KPIScore__evalua__5BE2A6F2" FromRole="KPIScore" ToRole="Users" />
+          <Property Name="enrollmentID" Type="Int32" />
+          <Property Name="remarks" Type="String" MaxLength="Max" FixedLength="false" Unicode="true" />
+          <NavigationProperty Name="Enrollment" Relationship="fypempModel.FK__KPIScore__enroll__7908F585" FromRole="KPIScore" ToRole="Enrollment" />
         </EntityType>
         <EntityType Name="PeerEvaluation">
           <Key>
@@ -991,6 +1094,7 @@
           <NavigationProperty Name="SocietyAssignments" Relationship="fypempModel.FK__SocietyAs__Sessi__2057CCD0" FromRole="Session" ToRole="SocietyAssignments" />
           <NavigationProperty Name="SocietyEvaluation" Relationship="fypempModel.FK_SocietyEvaluation_Session" FromRole="Session" ToRole="SocietyEvaluation" />
           <NavigationProperty Name="CHR" Relationship="fypempModel.FK_CHR_Session" FromRole="Session" ToRole="CHR" />
+          <NavigationProperty Name="ProjectEvaluation" Relationship="fypempModel.FK_ProjectEval_Session" FromRole="Session" ToRole="ProjectEvaluation" />
         </EntityType>
         <EntityType Name="SessionKPIWeight">
           <Key>
@@ -1015,6 +1119,7 @@
           <NavigationProperty Name="Enrollment" Relationship="Self.FK__Enrollmen__stude__6754599E" FromRole="Student" ToRole="Enrollment" />
           <NavigationProperty Name="Session" Relationship="Self.FK__Student__admissi__5FB337D6" FromRole="Student" ToRole="Session" />
           <NavigationProperty Name="Users" Relationship="Self.FK__Student__userID__5EBF139D" FromRole="Student" ToRole="Users" />
+          <Property Name="CGPA" Type="Decimal" Precision="3" Scale="2" />
         </EntityType>
         <EntityType Name="StudentEvaluation">
           <Key>
@@ -1055,6 +1160,8 @@
           <NavigationProperty Name="SocietyEvaluation" Relationship="fypempModel.FK_SocietyEvaluation_Evaluatee" FromRole="Teacher" ToRole="SocietyEvaluation" />
           <NavigationProperty Name="SocietyEvaluation1" Relationship="fypempModel.FK_SocietyEvaluation_Evaluator" FromRole="Teacher" ToRole="SocietyEvaluation" />
           <NavigationProperty Name="CHR" Relationship="fypempModel.FK__CHR__TeacherID__42ACE4D4" FromRole="Teacher" ToRole="CHR" />
+          <Property Name="IsCommitteeMember" Type="Boolean" />
+          <NavigationProperty Name="ProjectEvaluation" Relationship="fypempModel.FK_ProjectEval_Teacher" FromRole="Teacher" ToRole="ProjectEvaluation" />
         </EntityType>
         <EntityType Name="Users">
           <Key>
@@ -1063,13 +1170,13 @@
           <Property Name="id" Type="String" MaxLength="20" FixedLength="false" Unicode="false" Nullable="false" />
           <Property Name="password" Type="String" MaxLength="20" FixedLength="false" Unicode="false" />
           <Property Name="role" Type="String" MaxLength="20" FixedLength="false" Unicode="false" />
-          <Property Name="profileImagePath" Type="String" MaxLength="50" FixedLength="false" Unicode="false" />
           <Property Name="isActive" Type="Int32" />
           <NavigationProperty Name="KPIScore" Relationship="Self.FK__KPIScore__empID__5AEE82B9" FromRole="Users" ToRole="KPIScore" />
           <NavigationProperty Name="KPIScore1" Relationship="Self.FK__KPIScore__evalua__5BE2A6F2" FromRole="Users" ToRole="KPIScore" />
           <NavigationProperty Name="Student" Relationship="Self.FK__Student__userID__5EBF139D" FromRole="Users" ToRole="Student" />
           <NavigationProperty Name="Teacher" Relationship="Self.FK__Teacher__userID__628FA481" FromRole="Users" ToRole="Teacher" />
           <NavigationProperty Name="SocietyAssignments" Relationship="fypempModel.FK__SocietyAs__Teach__214BF109" FromRole="Users" ToRole="SocietyAssignments" />
+          <NavigationProperty Name="ProjectEvaluation" Relationship="fypempModel.FK_ProjectEval_Director" FromRole="Users" ToRole="ProjectEvaluation" />
         </EntityType>
         <Association Name="FK__Enrollmen__cours__693CA210">
           <End Role="Course" Type="Self.Course" Multiplicity="0..1" />
@@ -1570,6 +1677,27 @@
             <End Role="Session" EntitySet="Session" />
             <End Role="CHR" EntitySet="CHR" />
           </AssociationSet>
+          <AssociationSet Name="FK__KPIScore__enroll__7908F585" Association="fypempModel.FK__KPIScore__enroll__7908F585">
+            <End Role="Enrollment" EntitySet="Enrollment" />
+            <End Role="KPIScore" EntitySet="KPIScore" />
+          </AssociationSet>
+          <EntitySet Name="ProjectEvaluation" EntityType="fypempModel.ProjectEvaluation" />
+          <AssociationSet Name="FK_ProjectEval_Director" Association="fypempModel.FK_ProjectEval_Director">
+            <End Role="Users" EntitySet="Users" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Question" Association="fypempModel.FK_ProjectEval_Question">
+            <End Role="Questions" EntitySet="Questions" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Session" Association="fypempModel.FK_ProjectEval_Session">
+            <End Role="Session" EntitySet="Session" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
+          <AssociationSet Name="FK_ProjectEval_Teacher" Association="fypempModel.FK_ProjectEval_Teacher">
+            <End Role="Teacher" EntitySet="Teacher" />
+            <End Role="ProjectEvaluation" EntitySet="ProjectEvaluation" />
+          </AssociationSet>
         </EntityContainer>
         <Association Name="FK__KPI__KPI_Employe__14270015">
           <End Type="fypempModel.EmployeeType" Role="EmployeeType" Multiplicity="0..1" />
@@ -1595,6 +1723,7 @@
           <NavigationProperty Name="StudentEvaluation" Relationship="fypempModel.FK_StudentEvaluation_Questions" FromRole="Questions" ToRole="StudentEvaluation" />
           <NavigationProperty Name="SocietyEvaluation" Relationship="fypempModel.FK_SocietyEvaluation_Question" FromRole="Questions" ToRole="SocietyEvaluation" />
           <Property Name="isCritical" Type="Boolean" />
+          <NavigationProperty Name="ProjectEvaluation" Relationship="fypempModel.FK_ProjectEval_Question" FromRole="Questions" ToRole="ProjectEvaluation" />
         </EntityType>
         <Association Name="FK_Questions_Questionare">
           <End Type="fypempModel.Questionare" Role="Questionare" Multiplicity="1" />
@@ -1835,6 +1964,81 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK__KPIScore__enroll__7908F585">
+          <End Type="fypempModel.Enrollment" Role="Enrollment" Multiplicity="0..1" />
+          <End Type="fypempModel.KPIScore" Role="KPIScore" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Enrollment">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="KPIScore">
+              <PropertyRef Name="enrollmentID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <EntityType Name="ProjectEvaluation">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="evaluatorID" Type="String" Nullable="false" MaxLength="20" FixedLength="false" Unicode="false" />
+          <Property Name="evaluateeID" Type="String" Nullable="false" MaxLength="20" FixedLength="false" Unicode="false" />
+          <Property Name="questionID" Type="Int32" Nullable="false" />
+          <Property Name="score" Type="Int32" Nullable="false" />
+          <Property Name="sessionID" Type="Int32" Nullable="false" />
+          <NavigationProperty Name="Users" Relationship="fypempModel.FK_ProjectEval_Director" FromRole="ProjectEvaluation" ToRole="Users" />
+          <NavigationProperty Name="Questions" Relationship="fypempModel.FK_ProjectEval_Question" FromRole="ProjectEvaluation" ToRole="Questions" />
+          <NavigationProperty Name="Session" Relationship="fypempModel.FK_ProjectEval_Session" FromRole="ProjectEvaluation" ToRole="Session" />
+          <NavigationProperty Name="Teacher" Relationship="fypempModel.FK_ProjectEval_Teacher" FromRole="ProjectEvaluation" ToRole="Teacher" />
+        </EntityType>
+        <Association Name="FK_ProjectEval_Director">
+          <End Type="fypempModel.Users" Role="Users" Multiplicity="1" />
+          <End Type="fypempModel.ProjectEvaluation" Role="ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Users">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="evaluatorID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Question">
+          <End Type="fypempModel.Questions" Role="Questions" Multiplicity="1" />
+          <End Type="fypempModel.ProjectEvaluation" Role="ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Questions">
+              <PropertyRef Name="QuestionID" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="questionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Session">
+          <End Type="fypempModel.Session" Role="Session" Multiplicity="1" />
+          <End Type="fypempModel.ProjectEvaluation" Role="ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Session">
+              <PropertyRef Name="id" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="sessionID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_ProjectEval_Teacher">
+          <End Type="fypempModel.Teacher" Role="Teacher" Multiplicity="1" />
+          <End Type="fypempModel.ProjectEvaluation" Role="ProjectEvaluation" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Teacher">
+              <PropertyRef Name="userID" />
+            </Principal>
+            <Dependent Role="ProjectEvaluation">
+              <PropertyRef Name="evaluateeID" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
       </Schema>
     </edmx:ConceptualModels>
     <!-- C-S mapping content -->
@@ -1871,6 +2075,8 @@
           <EntitySetMapping Name="Enrollment">
             <EntityTypeMapping TypeName="fypempModel.Enrollment">
               <MappingFragment StoreEntitySet="Enrollment">
+                <ScalarProperty Name="Grade" ColumnName="Grade" />
+                <ScalarProperty Name="Section" ColumnName="Section" />
                 <ScalarProperty Name="id" ColumnName="id" />
                 <ScalarProperty Name="studentID" ColumnName="studentID" />
                 <ScalarProperty Name="teacherID" ColumnName="teacherID" />
@@ -1891,6 +2097,8 @@
           <EntitySetMapping Name="KPIScore">
             <EntityTypeMapping TypeName="fypempModel.KPIScore">
               <MappingFragment StoreEntitySet="KPIScore">
+                <ScalarProperty Name="remarks" ColumnName="remarks" />
+                <ScalarProperty Name="enrollmentID" ColumnName="enrollmentID" />
                 <ScalarProperty Name="id" ColumnName="id" />
                 <ScalarProperty Name="empKPIID" ColumnName="empKPIID" />
                 <ScalarProperty Name="empID" ColumnName="empID" />
@@ -1951,6 +2159,7 @@
           <EntitySetMapping Name="Student">
             <EntityTypeMapping TypeName="fypempModel.Student">
               <MappingFragment StoreEntitySet="Student">
+                <ScalarProperty Name="CGPA" ColumnName="CGPA" />
                 <ScalarProperty Name="userID" ColumnName="userID" />
                 <ScalarProperty Name="name" ColumnName="name" />
                 <ScalarProperty Name="admissionSessionID" ColumnName="admissionSessionID" />
@@ -1979,6 +2188,7 @@
           <EntitySetMapping Name="Teacher">
             <EntityTypeMapping TypeName="fypempModel.Teacher">
               <MappingFragment StoreEntitySet="Teacher">
+                <ScalarProperty Name="IsCommitteeMember" ColumnName="IsCommitteeMember" />
                 <ScalarProperty Name="designation" ColumnName="designation" />
                 <ScalarProperty Name="isPermanentEvaluator" ColumnName="isPermanentEvaluator" />
                 <ScalarProperty Name="userID" ColumnName="userID" />
@@ -1993,7 +2203,6 @@
                 <ScalarProperty Name="id" ColumnName="id" />
                 <ScalarProperty Name="password" ColumnName="password" />
                 <ScalarProperty Name="role" ColumnName="role" />
-                <ScalarProperty Name="profileImagePath" ColumnName="profileImagePath" />
                 <ScalarProperty Name="isActive" ColumnName="isActive" />
               </MappingFragment>
             </EntityTypeMapping>
@@ -2067,6 +2276,18 @@
                 <ScalarProperty Name="TeacherName" ColumnName="TeacherName" />
                 <ScalarProperty Name="TeacherID" ColumnName="TeacherID" />
                 <ScalarProperty Name="CourseCode" ColumnName="CourseCode" />
+                <ScalarProperty Name="id" ColumnName="id" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="ProjectEvaluation">
+            <EntityTypeMapping TypeName="fypempModel.ProjectEvaluation">
+              <MappingFragment StoreEntitySet="ProjectEvaluation">
+                <ScalarProperty Name="sessionID" ColumnName="sessionID" />
+                <ScalarProperty Name="score" ColumnName="score" />
+                <ScalarProperty Name="questionID" ColumnName="questionID" />
+                <ScalarProperty Name="evaluateeID" ColumnName="evaluateeID" />
+                <ScalarProperty Name="evaluatorID" ColumnName="evaluatorID" />
                 <ScalarProperty Name="id" ColumnName="id" />
               </MappingFragment>
             </EntityTypeMapping>

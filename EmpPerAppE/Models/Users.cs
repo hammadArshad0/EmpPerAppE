@@ -19,12 +19,12 @@ namespace EmpPerAppE.Models
             this.KPIScore = new HashSet<KPIScore>();
             this.KPIScore1 = new HashSet<KPIScore>();
             this.SocietyAssignments = new HashSet<SocietyAssignments>();
+            this.ProjectEvaluation = new HashSet<ProjectEvaluation>();
         }
     
         public string id { get; set; }
         public string password { get; set; }
         public string role { get; set; }
-        public string profileImagePath { get; set; }
         public Nullable<int> isActive { get; set; }
     
         public virtual ICollection<KPIScore> KPIScore { get; set; }
@@ -32,5 +32,6 @@ namespace EmpPerAppE.Models
         public virtual Student Student { get; set; }
         public virtual Teacher Teacher { get; set; }
         public virtual ICollection<SocietyAssignments> SocietyAssignments { get; set; }
+        public virtual ICollection<ProjectEvaluation> ProjectEvaluation { get; set; }
     }
 }

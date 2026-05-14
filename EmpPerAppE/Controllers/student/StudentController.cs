@@ -206,6 +206,16 @@ namespace EmpPerAppE.Controllers.student
                         string userId = row["UserID"].ToString().Trim();
                         string name = row["Name"].ToString().Trim();
 
+                        // ✅ FIXED CGPA reading
+                        decimal cgpa = 0;
+                        var cgpaCol = dataTable.Columns.Cast<DataColumn>()
+                            .FirstOrDefault(c => c.ColumnName.Equals("CGPA", StringComparison.OrdinalIgnoreCase));
+
+                        if (cgpaCol != null && row[cgpaCol] != DBNull.Value)
+                        {
+                            decimal.TryParse(row[cgpaCol].ToString().Trim(), out cgpa);
+                        }
+
                         // Users table
                         if (db.Users.Find(userId) == null)
                         {
@@ -214,28 +224,37 @@ namespace EmpPerAppE.Controllers.student
                                 id = userId,
                                 password = "123",
                                 role = "Student",
-                                profileImagePath = null,
                                 isActive = 1
                             });
                         }
-
-                        // Student duplicate check
-                        if (db.Student.Find(userId) != null)
+                        var existingStudent = db.Student.Find(userId);
+                        if (existingStudent != null)
                         {
+                            // ✅ Sirf CGPA update karo
+                            existingStudent.CGPA = cgpa;
                             skippedDuplicate++;
                             continue;
                         }
+
+
+                        // if (db.Student.Find(userId) != null)
+                        //{
+                        //    skippedDuplicate++;
+                        //    continue;
+                        //}
 
                         db.Student.Add(new Student
                         {
                             userID = userId,
                             name = name,
-                            admissionSessionID = sessionId
+                            admissionSessionID = sessionId,
+                            CGPA = cgpa  // ✅ Ab sahi value jayegi
                         });
 
                         inserted++;
                     }
-
+                    // Student duplicate check
+                   
                     db.SaveChanges();
 
                     return Ok($"{inserted} students uploaded. {skippedDuplicate} duplicates skipped.");

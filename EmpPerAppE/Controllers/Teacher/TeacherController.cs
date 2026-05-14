@@ -83,7 +83,8 @@ namespace EmpPerAppE.Controllers
                                     name = name,
                                     department = department,
                                     designation = designation,
-                                    isPermanentEvaluator = 0
+                                    isPermanentEvaluator = 0,
+                                    IsCommitteeMember = false
                                 });
                                 insertedCount++;
                             }

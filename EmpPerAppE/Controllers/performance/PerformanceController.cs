@@ -275,6 +275,9 @@ namespace EmpPerAppE.Controllers.performance
                 var isSocietyMember = db.SocietyAssignments
                     .Any(sa => sa.TeacherId == teacherId && sa.SessionId == sessionId);
 
+                // Teacher table mein IsCommitteeMember column check karein
+                var isProjectMember = teacherData.IsCommitteeMember ?? false;
+
                 // is session ke active KPIs nikalo
                 var activeKPIs = db.EmployeSessionKPI
                     .Where(esk => esk.SessionID == sessionId &&
@@ -314,6 +317,8 @@ namespace EmpPerAppE.Controllers.performance
                     // agar ustad society member nahi to society KPI hata do
                     if (subName.Contains("society") && !isSocietyMember)
                         return false;
+                    else if (subName.Contains("Project") && isProjectMember)
+                        return false;
                     //agr future mein koi aur project specific KPI add karna ho to uska bhi check yahan add kar sakte hain, misaal ke taur par:
                     return true;
                 }).ToList();
@@ -351,6 +356,10 @@ namespace EmpPerAppE.Controllers.performance
                 var societyAvg = db.SocietyEvaluation
                     .Where(se => se.EvaluateeId == teacherId && se.SessionId == sessionId)
                     .Select(x => (double?)x.Score).DefaultIfEmpty().Average() ?? 0;
+
+                var ProjectAvg = db.ProjectEvaluation
+              .Where(pe => pe.evaluateeID == teacherId && pe.sessionID == sessionId)
+              .Select(x => (double?)x.score).DefaultIfEmpty().Average() ?? 0;
 
                 // CHR ka raw data nikalo
                 var chrRawData = db.CHR
@@ -411,6 +420,8 @@ namespace EmpPerAppE.Controllers.performance
                             multiplier = peerAvg;
                         else if (subName.Contains("society"))
                             multiplier = isSocietyMember ? societyAvg : 0;
+                        else if (subName.Contains("Project"))
+                            multiplier = isProjectMember ? ProjectAvg : 0;
                         else if (subName.Contains("confidential"))
                             multiplier = 0; // confidential score frontend se aata hai (Dexie)
                         else if (subName.Contains("chr") || subName.Contains("class held report"))
@@ -438,6 +449,7 @@ namespace EmpPerAppE.Controllers.performance
                             SubAchieved = achieved,
                             MaxScale = maxScale,
                             RawScore = multiplier,
+                            IsProjectMember = isProjectMember, // Frontend ko info dene ke liye
                             IsSociety = subName.Contains("society") && isSocietyMember,
                             IsCHR = subName.Contains("chr") || subName.Contains("class held report")
                         });
