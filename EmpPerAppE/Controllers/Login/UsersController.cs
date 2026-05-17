@@ -15,20 +15,20 @@
 
 
 //        [Route("Login")]
-//            [HttpPost]
-//            public HttpResponseMessage Login(string id, string password)
+//        [HttpPost]
+//        public HttpResponseMessage Login(string id, string password)
+//        {
+//            var res = db.Users.FirstOrDefault(x => x.id == id && x.password == password && x.isActive == 1);
+//            if (res == null)
 //            {
-//                var res = db.Users.FirstOrDefault(x => x.id == id && x.password == password && x.isActive == 1);
-//                if (res == null)
-//                {
-//                    return Request.CreateResponse(HttpStatusCode.NotFound, "No User Found");
-
-//                }
-
-//                return Request.CreateResponse(HttpStatusCode.OK, new { message = "LoginSuccessful", role = res.role , userId = res.id });
+//                return Request.CreateResponse(HttpStatusCode.NotFound, "No User Found");
 
 //            }
+
+//            return Request.CreateResponse(HttpStatusCode.OK, new { message = "LoginSuccessful", role = res.role, userId = res.id });
+
 //        }
+//    }
 //}
 using EmpPerAppE.Models;
 using System;
@@ -47,7 +47,7 @@ namespace EmpPerAppE.Controllers.Login
 
         [Route("Login")]
         [HttpPost]
-        public HttpResponseMessage Login(string id, string password)
+        public HttpResponseMessage Login([FromUri] string id, [FromUri] string password)
         {
             try
             {
@@ -140,5 +140,5 @@ namespace EmpPerAppE.Controllers.Login
             }
         }
     }
-    }
+}
 

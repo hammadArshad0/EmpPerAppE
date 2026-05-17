@@ -24,6 +24,7 @@ namespace EmpPerAppE.Models
             this.SocietyAssignments = new HashSet<SocietyAssignments>();
             this.SocietyEvaluation = new HashSet<SocietyEvaluation>();
             this.CHR = new HashSet<CHR>();
+            this.ProjectEvaluation = new HashSet<ProjectEvaluation>();
         }
     
         public int id { get; set; }
@@ -37,5 +38,6 @@ namespace EmpPerAppE.Models
         public virtual ICollection<SocietyAssignments> SocietyAssignments { get; set; }
         public virtual ICollection<SocietyEvaluation> SocietyEvaluation { get; set; }
         public virtual ICollection<CHR> CHR { get; set; }
+        public virtual ICollection<ProjectEvaluation> ProjectEvaluation { get; set; }
     }
 }

@@ -19,6 +19,7 @@ namespace EmpPerAppE.Models
             this.PeerEvaluation = new HashSet<PeerEvaluation>();
             this.StudentEvaluation = new HashSet<StudentEvaluation>();
             this.SocietyEvaluation = new HashSet<SocietyEvaluation>();
+            this.ProjectEvaluation = new HashSet<ProjectEvaluation>();
         }
     
         public int QuestionID { get; set; }
@@ -30,5 +31,6 @@ namespace EmpPerAppE.Models
         public virtual ICollection<PeerEvaluation> PeerEvaluation { get; set; }
         public virtual ICollection<StudentEvaluation> StudentEvaluation { get; set; }
         public virtual ICollection<SocietyEvaluation> SocietyEvaluation { get; set; }
+        public virtual ICollection<ProjectEvaluation> ProjectEvaluation { get; set; }
     }
 }

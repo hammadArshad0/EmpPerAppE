@@ -189,63 +189,132 @@ namespace EmpPerAppE.Controllers.Teacher
         // GET api/TeacherSelf/GetMyQuestionStats/{teacherId}/{sessionId}
         //     ?courseCode=CS101&evaluationType=both|student|peer
         // ─────────────────────────────────────────────────────────────────────
+        //[HttpGet]
+        //[Route("GetMyQuestionStats/{teacherId}/{sessionId}")]
+        //public IHttpActionResult GetMyQuestionStats(
+        //    string teacherId,
+        //    int sessionId,
+        //    string courseCode = null,
+        //    string evaluationType = "both")
+        //{
+        //    var result = new List<object>();
+
+        //    if (evaluationType == "student" || evaluationType == "both")
+        //    {
+        //        var studentData = db.StudentEvaluation
+        //            .Where(s => s.Enrollment.teacherID == teacherId
+        //                     && s.Enrollment.sessionID == sessionId
+        //                     && (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode))
+        //            .GroupBy(s => s.questionID)
+        //            .Select(g => new
+        //            {
+        //                QuestionId = g.Key,
+        //                QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
+        //                AverageScore = g.Average(x => (double?)x.score) ?? 0,
+        //                TotalResponses = g.Count(),
+        //                Score1 = g.Count(x => x.score == 1),
+        //                Score2 = g.Count(x => x.score == 2),
+        //                Score3 = g.Count(x => x.score == 3),
+        //                Score4 = g.Count(x => x.score == 4),
+        //                Type = "Student"
+        //            }).ToList();
+        //        result.AddRange(studentData);
+        //    }
+
+        //    if (evaluationType == "peer" || evaluationType == "both")
+        //    {
+        //        var peerData = db.PeerEvaluation
+        //            .Where(p => p.evaluateeID == teacherId
+        //                     && p.PeerEvaluator.sessionID == sessionId
+        //                     && (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode))
+        //            .GroupBy(p => p.questionID)
+        //            .Select(g => new
+        //            {
+        //                QuestionId = g.Key,
+        //                QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
+        //                AverageScore = g.Average(x => (double?)x.score) ?? 0,
+        //                TotalResponses = g.Count(),
+        //                Score1 = g.Count(x => x.score == 1),
+        //                Score2 = g.Count(x => x.score == 2),
+        //                Score3 = g.Count(x => x.score == 3),
+        //                Score4 = g.Count(x => x.score == 4),
+        //                Type = "Peer"
+        //            }).ToList();
+        //        result.AddRange(peerData);
+        //    }
+
+        //    return Ok(result);
+        //}
         [HttpGet]
         [Route("GetMyQuestionStats/{teacherId}/{sessionId}")]
         public IHttpActionResult GetMyQuestionStats(
-            string teacherId,
-            int sessionId,
-            string courseCode = null,
-            string evaluationType = "both")
+    string teacherId,
+    int sessionId,
+    string courseCode = null,
+    string evaluationType = "both",
+    bool onlyCritical = false) // NEW parameter
         {
             var result = new List<object>();
 
             if (evaluationType == "student" || evaluationType == "both")
             {
-                var studentData = db.StudentEvaluation
-                    .Where(s => s.Enrollment.teacherID == teacherId
-                             && s.Enrollment.sessionID == sessionId
-                             && (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode))
-                    .GroupBy(s => s.questionID)
-                    .Select(g => new
-                    {
-                        QuestionId = g.Key,
-                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
-                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
-                        TotalResponses = g.Count(),
-                        Score1 = g.Count(x => x.score == 1),
-                        Score2 = g.Count(x => x.score == 2),
-                        Score3 = g.Count(x => x.score == 3),
-                        Score4 = g.Count(x => x.score == 4),
-                        Type = "Student"
-                    }).ToList();
+                var studentQuery = db.StudentEvaluation.Where(s => s.Enrollment.teacherID == teacherId
+                                   && s.Enrollment.sessionID == sessionId
+                                   && (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode));
+
+                if (onlyCritical) studentQuery = studentQuery.Where(s => s.Questions.isCritical == true);
+
+                var studentData = studentQuery.GroupBy(s => s.questionID).Select(g => new {
+                    QuestionId = g.Key,
+                    QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
+                    isCritical = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.isCritical).FirstOrDefault(),
+                    AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                    TotalResponses = g.Count(),
+                    Score1 = g.Count(x => x.score == 1),
+                    Score2 = g.Count(x => x.score == 2),
+                    Score3 = g.Count(x => x.score == 3),
+                    Score4 = g.Count(x => x.score == 4),
+                    Type = "Student",
+                    // Detail List for Modal
+                    Evaluators = g.Select(x => new {
+                        ID = x.Enrollment.studentID,
+                        Name = db.Student.Where(st => st.userID == x.Enrollment.studentID).Select(st => st.name).FirstOrDefault(),
+                        GivenScore = x.score ?? 0
+                    }).ToList()
+                }).ToList();
                 result.AddRange(studentData);
             }
 
             if (evaluationType == "peer" || evaluationType == "both")
             {
-                var peerData = db.PeerEvaluation
-                    .Where(p => p.evaluateeID == teacherId
-                             && p.PeerEvaluator.sessionID == sessionId
-                             && (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode))
-                    .GroupBy(p => p.questionID)
-                    .Select(g => new
-                    {
-                        QuestionId = g.Key,
-                        QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
-                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
-                        TotalResponses = g.Count(),
-                        Score1 = g.Count(x => x.score == 1),
-                        Score2 = g.Count(x => x.score == 2),
-                        Score3 = g.Count(x => x.score == 3),
-                        Score4 = g.Count(x => x.score == 4),
-                        Type = "Peer"
-                    }).ToList();
+                var peerQuery = db.PeerEvaluation.Where(p => p.evaluateeID == teacherId
+                                && p.PeerEvaluator.sessionID == sessionId
+                                && (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode));
+
+                if (onlyCritical) peerQuery = peerQuery.Where(p => p.Questions.isCritical == true);
+
+                var peerData = peerQuery.GroupBy(p => p.questionID).Select(g => new {
+                    QuestionId = g.Key,
+                    QuestionText = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.QuestionText).FirstOrDefault(),
+                    isCritical = db.Questions.Where(q => q.QuestionID == g.Key).Select(q => q.isCritical).FirstOrDefault(),
+                    AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                    TotalResponses = g.Count(),
+                    Score1 = g.Count(x => x.score == 1),
+                    Score2 = g.Count(x => x.score == 2),
+                    Score3 = g.Count(x => x.score == 3),
+                    Score4 = g.Count(x => x.score == 4),
+                    Type = "Peer",
+                    // Detail List for Modal
+                    Evaluators = g.Select(x => new {
+                        ID = x.PeerEvaluator.teacherID,
+                        Name = db.Teacher.Where(t => t.userID == x.PeerEvaluator.teacherID).Select(t => t.name).FirstOrDefault(),
+                        GivenScore = x.score ?? 0
+                    }).ToList()
+                }).ToList();
                 result.AddRange(peerData);
             }
-
             return Ok(result);
         }
-
         // ─────────────────────────────────────────────────────────────────────
         // GET api/TeacherSelf/GetTeacherResultByCourse
         //     ?teacherId=x&courseCode=x&sessionId=x
