@@ -127,76 +127,148 @@ namespace EmpPerAppE.Controllers.Director
 
         [HttpGet]
         [Route("GetTeacherQuestionStatsFull")]
-        public IHttpActionResult GetTeacherQuestionStatsFull(string teacherId, int sessionId, string evaluationType, bool onlyCritical = false, string courseCode = null)
+        public IHttpActionResult GetTeacherQuestionStatsFull(
+    string teacherId,
+    int sessionId,
+    string evaluationType,
+    bool onlyCritical = false,
+    string courseCode = null,
+    string section = null)          // ✅ section param added
         {
             var result = new List<object>();
 
-            // 1. Student Evaluation
+            // ── 1. Student Evaluation ────────────────────────────────────────────────
             if (evaluationType == "student" || evaluationType == "both")
             {
-                var studentQuery = db.StudentEvaluation.Where(s =>
-                    s.Enrollment.sessionID == sessionId &&
-                    s.Enrollment.teacherID == teacherId &&
-                    (string.IsNullOrEmpty(courseCode) || s.Enrollment.courseCode == courseCode));
+                // Pull a flat list first — avoids nested DB calls inside Select
+                var rows = db.StudentEvaluation
+                    .Where(s =>
+                        s.Enrollment.sessionID == sessionId &&
+                        s.Enrollment.teacherID == teacherId &&
+                        (courseCode == null || s.Enrollment.courseCode == courseCode) &&
+                        (section == null || s.Enrollment.Section == section) &&   // ✅ section filter
+                        (!onlyCritical || s.Questions.isCritical == true))
+                    .Select(s => new
+                    {
+                        s.questionID,
+                        QuestionText = s.Questions.QuestionText,
+                        isCritical = s.Questions.isCritical,
+                        score = s.score ?? 0,
+                        StudentId = s.Enrollment.studentID,
+                        StudentName = s.Enrollment.Student.name     // ✅ single JOIN, no sub-query loop
+                    })
+                    .ToList();                                        // ← one DB round-trip
 
-                if (onlyCritical) studentQuery = studentQuery.Where(s => s.Questions.isCritical == true);
-
-                var data = studentQuery.GroupBy(s => new { s.questionID, s.Questions.QuestionText, s.Questions.isCritical })
-                    .Select(g => new {
+                var grouped = rows
+                    .GroupBy(s => new { s.questionID, s.QuestionText, s.isCritical })
+                    .Select(g => new
+                    {
                         QuestionId = g.Key.questionID,
                         QuestionText = g.Key.QuestionText,
                         isCritical = g.Key.isCritical,
-                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                        AverageScore = g.Average(x => (double)x.score),
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
                         Score2 = g.Count(x => x.score == 2),
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
                         Type = "Student",
-                        // Yahan Name aur ID fetch ho rahi hai detail modal ke liye
-                        Evaluators = g.Select(x => new {
-                            ID = x.Enrollment.studentID,
-                            Name = db.Student.Where(st => st.userID == x.Enrollment.studentID).Select(st => st.name).FirstOrDefault(),
-                            GivenScore = x.score ?? 0
+                        Evaluators = g.Select(x => new
+                        {
+                            ID = x.StudentId,
+                            Name = x.StudentName,
+                            GivenScore = x.score
                         }).ToList()
-                    }).ToList();
-                result.AddRange(data);
+                    });
+
+                result.AddRange(grouped);
             }
 
-            // 2. Peer Evaluation (Same logic for Peer)
+            // ── 2. Peer Evaluation ───────────────────────────────────────────────────
             if (evaluationType == "peer" || evaluationType == "both")
             {
-                var peerQuery = db.PeerEvaluation.Where(p =>
-                    p.PeerEvaluator.sessionID == sessionId &&
-                    p.evaluateeID == teacherId &&
-                    (string.IsNullOrEmpty(courseCode) || p.courseCode == courseCode));
+                // For peer: section means the section of the evaluatee's enrollment in that course
+                var rows = db.PeerEvaluation
+                    .Where(p =>
+                        p.PeerEvaluator.sessionID == sessionId &&
+                        p.evaluateeID == teacherId &&
+                        (courseCode == null || p.courseCode == courseCode) &&
+                        (!onlyCritical || p.Questions.isCritical == true))
+                    .Select(p => new
+                    {
+                        p.questionID,
+                        QuestionText = p.Questions.QuestionText,
+                        isCritical = p.Questions.isCritical,
+                        score = p.score ?? 0,
+                        EvaluatorId = p.PeerEvaluator.teacherID,
+                        EvaluatorName = p.PeerEvaluator.Teacher.name   // ✅ single JOIN
+                    })
+                    .ToList();                                           // ← one DB round-trip
 
-                if (onlyCritical) peerQuery = peerQuery.Where(p => p.Questions.isCritical == true);
+                // ✅ Section filter for peer: filter by enrollments of the evaluatee in given section
+                if (section != null)
+                {
+                    var validEvaluatorIds = db.Enrollment
+                        .Where(e =>
+                            e.teacherID == teacherId &&
+                            e.sessionID == sessionId &&
+                            e.Section == section &&
+                            (courseCode == null || e.courseCode == courseCode))
+                        .Select(e => e.studentID)
+                        .Distinct()
+                        .ToList();
 
-                var data = peerQuery.GroupBy(p => new { p.questionID, p.Questions.QuestionText, p.Questions.isCritical })
-                    .Select(g => new {
+                    rows = rows.Where(r => validEvaluatorIds.Contains(r.EvaluatorId)).ToList();
+                }
+
+                var grouped = rows
+                    .GroupBy(p => new { p.questionID, p.QuestionText, p.isCritical })
+                    .Select(g => new
+                    {
                         QuestionId = g.Key.questionID,
                         QuestionText = g.Key.QuestionText,
                         isCritical = g.Key.isCritical,
-                        AverageScore = g.Average(x => (double?)x.score) ?? 0,
+                        AverageScore = g.Average(x => (double)x.score),
                         TotalResponses = g.Count(),
                         Score1 = g.Count(x => x.score == 1),
                         Score2 = g.Count(x => x.score == 2),
                         Score3 = g.Count(x => x.score == 3),
                         Score4 = g.Count(x => x.score == 4),
                         Type = "Peer",
-                        Evaluators = g.Select(x => new {
-                            ID = x.PeerEvaluator.teacherID,
-                            Name = db.Teacher.Where(t => t.userID == x.PeerEvaluator.teacherID).Select(t => t.name).FirstOrDefault(),
-                            GivenScore = x.score ?? 0
+                        Evaluators = g.Select(x => new
+                        {
+                            ID = x.EvaluatorId,
+                            Name = x.EvaluatorName,
+                            GivenScore = x.score
                         }).ToList()
-                    }).ToList();
-                result.AddRange(data);
+                    });
+
+                result.AddRange(grouped);
             }
 
             return Ok(result);
         }
 
+
+        // ── GetSections endpoint ─────────────────────────────────────────────────────
+        [HttpGet]
+        [Route("GetSections")]
+        public IHttpActionResult GetSections(string teacherId, int sessionId, string courseCode = null)
+        {
+            var sections = db.Enrollment
+                .Where(e =>
+                    e.teacherID == teacherId &&
+                    e.sessionID == sessionId &&
+                    (courseCode == null || e.courseCode == courseCode) &&
+                    e.Section != null)
+                .Select(e => e.Section)
+                .Distinct()
+                .OrderBy(s => s)
+                .Select(s => new { section = s })
+                .ToList();
+
+            return Ok(sections);
+        }
 
         [HttpGet]
         [Route("GetTeacherResultByCourse")]
@@ -317,15 +389,35 @@ namespace EmpPerAppE.Controllers.Director
             return Ok(departments);
         }
 
+        //[HttpGet]
+        //[Route("GetCoursesBySession/{sessionId}")]
+        //public IHttpActionResult GetCoursesBySession(int sessionId)
+        //{
+        //    return Ok(db.Enrollment
+        //        .Where(e => e.sessionID == sessionId)
+        //        .Select(e => e.courseCode)
+        //        .Distinct()
+        //        .ToList());
+        //}
+
         [HttpGet]
         [Route("GetCoursesBySession/{sessionId}")]
         public IHttpActionResult GetCoursesBySession(int sessionId)
         {
-            return Ok(db.Enrollment
+            var courses = db.Enrollment
                 .Where(e => e.sessionID == sessionId)
-                .Select(e => e.courseCode)
+                .Join(db.Course,
+                      e => e.courseCode,
+                      c => c.code,
+                      (e, c) => new
+                      {
+                          code = c.code,
+                          title = c.title
+                      })
                 .Distinct()
-                .ToList());
+                .ToList();
+
+            return Ok(courses);
         }
 
 
